@@ -120,7 +120,9 @@ export function ListingContent({ sku, allSkus, showHeading = true, evidence }: {
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">Bullets</h3>
           {sku.bullets.length ? (
             <ol className="mt-2 space-y-3">
-              {sku.bullets.map((bullet, index) => (
+              {sku.bullets.map((bullet, index) => {
+                const clarity = bulletClarity(bullet);
+                return (
                 <li id={`listing-field-bullet_${index + 1}`} key={`${sku.sku_id}-bullet-${index}`} className="scroll-mt-24 flex gap-3 text-sm leading-6 text-foreground">
                   <span className="text-muted-foreground">{index + 1}.</span>
                   <span className="min-w-0 flex-1">
