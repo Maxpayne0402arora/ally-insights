@@ -8,7 +8,7 @@ const FIELDS = new Set(["title", "bullets", "description", "any"]);
 function validate(a: unknown): Assertion {
   if (!a || typeof a !== "object") throw new Error("each assertion must be an object");
   const o = a as Record<string, unknown>;
-  const t = String(o.type ?? "");
+  const t = String(o["type"] ?? "");
   if (!TYPES.has(t)) throw new Error(`unknown assertion type "${t}"`);
   const str = (k: string) => (o[k] == null ? "" : String(o[k]));
   const field = () => {
@@ -17,7 +17,7 @@ function validate(a: unknown): Assertion {
     return f as "any";
   };
   const num = () => {
-    const n = Number(o.value);
+    const n = Number(o["value"]);
     if (!Number.isFinite(n)) throw new Error(`${t} needs a numeric value`);
     return n;
   };
@@ -49,8 +49,8 @@ export function parseEvalCsv(text: string, fileName: string): { set: EvalSet | n
   const raw = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim().toLowerCase() });
   const extra = new Map<string, { scenario: string; expectations: string; rowNo: number }>();
   raw.data.forEach((r, i) => {
-    const id = (r.sku_id ?? "").trim().toLowerCase();
-    if (id && !extra.has(id)) extra.set(id, { scenario: (r.scenario ?? "").trim(), expectations: (r.expectations ?? "").trim(), rowNo: i + 2 });
+    const id = (r["sku_id"] ?? "").trim().toLowerCase();
+    if (id && !extra.has(id)) extra.set(id, { scenario: (r["scenario"] ?? "").trim(), expectations: (r["expectations"] ?? "").trim(), rowNo: i + 2 });
   });
   const rowErrors: string[] = [];
   const rows: EvalRow[] = base.skus.map((sku) => {
@@ -74,7 +74,7 @@ export function parseEvalCsv(text: string, fileName: string): { set: EvalSet | n
 
 export function setSummary(set: EvalSet) {
   const clients = set.rows.filter((r) => r.sku.is_client).length;
-  const scenarios = set.rows.filter((r) => r.scenario).length;
+  const scenarios = set.rows.filter((r) => r["scenario"]).length;
   const assertions = set.rows.reduce((n, r) => n + r.assertions.length + (r.sku.is_client ? 2 : 0), 0);
   return `${set.rows.length} rows · ${clients} client SKUs · ${scenarios} scenarios · ${assertions} assertions`;
 }
