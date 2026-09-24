@@ -156,7 +156,7 @@ function EvalPage() {
           if (!t.repeatOf) rec.assertions = evaluateRow(t.row, baseRun.set.skus, rec);
           model ??= rec.attempts.find((a) => a.model)?.model ?? null;
           await saveRecord(id, rec);
-          setRecords((p) => ({ ...p, [id]: { ...p[id], [t.key]: rec } }));
+          setRecords((p) => ({ ...p, [id]: { ...(p[id] ?? {}), [t.key]: rec } }));
         } catch {
           if (ctrl.signal.aborted) return;
         }
