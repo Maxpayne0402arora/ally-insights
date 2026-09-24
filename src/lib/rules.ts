@@ -92,6 +92,7 @@ const mk = (
   severity,
   message,
   evidence,
+  match_type: "explicit",
   ...(ranges && ranges.length ? { ranges } : {}),
 });
 
@@ -333,7 +334,11 @@ export function auditSku(sku: Sku, allSkus: Sku[]): Finding[] {
 export type ValidatableField = "title" | "bullets" | "description";
 
 /** Run the same deterministic checks on arbitrary proposed text. */
-export function validateText(field: ValidatableField, text: string | string[], sku: Sku, allSkus: Sku[]): Finding[] {
+/** Replace "[confirm: …]" placeholders with spaces (same length) so they are never checked. */
+export const maskPlaceholders = (s: string) => s.replace(/\[\s*confirm\s*:[^\]]*\]/gi, (m) => " ".repeat(m.length));
+
+export function validateText(field: ValidatableField, rawText: string | string[], sku: Sku, allSkus: Sku[]): Finding[] {
+  const text = Array.isArray(rawText) ? rawText.map(maskPlaceholders) : maskPlaceholders(rawText);
   if (field === "title") return checkTitle(Array.isArray(text) ? text.join(" ") : text, sku, allSkus);
   if (field === "bullets") return checkBullets(Array.isArray(text) ? text : [text], sku, allSkus);
   return checkDescription(Array.isArray(text) ? text.join("\n") : text, sku, allSkus);
