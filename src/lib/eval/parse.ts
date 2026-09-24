@@ -24,7 +24,7 @@ function validate(a: unknown): Assertion {
   switch (t) {
     case "finding_flagged":
     case "finding_not_flagged":
-      if (!str("rule_id")) throw new Error(`${t} needs rule_id`);
+      // Empty rule_id means "any rule".
       return { type: t, rule_id: str("rule_id"), text: str("text") };
     case "not_contains":
       return { type: t, field: field(), value: str("value") };
@@ -68,7 +68,7 @@ export function parseEvalCsv(text: string, fileName: string): { set: EvalSet | n
     }
     return row;
   });
-  const warnings = base.warnings.map((w) => w.replace(/,?\s*\b(scenario|expectations)\b/g, "")).filter((w) => !/ignored:\s*$/.test(w));
+  const warnings = base.warnings.map((w) => w.replace(/,?\s*\b(scenario|expectations|eval_type)\b/g, "")).filter((w) => !/ignored:\s*$/.test(w));
   return { set: { fileName, skus: base.skus, rows, warnings, skipped: base.skipped }, errors: [], rowErrors };
 }
 

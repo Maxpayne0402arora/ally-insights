@@ -4,8 +4,8 @@ import type { AiResult, GuardFailure, PayloadFinding } from "@/lib/top3";
 export type EvalField = "title" | "bullets" | "description" | "any";
 
 export type Assertion =
-  | { type: "finding_flagged"; rule_id: string; text?: string }
-  | { type: "finding_not_flagged"; rule_id: string; text?: string }
+  | { type: "finding_flagged"; rule_id?: string; text?: string }
+  | { type: "finding_not_flagged"; rule_id?: string; text?: string }
   | { type: "not_contains"; field: EvalField; value: string }
   | { type: "contains_placeholder"; field: EvalField }
   | { type: "edit_field_present"; field: EvalField }
