@@ -1,3 +1,4 @@
+import type React from "react";
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { rules, ruleById, ruleSections } from "@/data/rules";
@@ -22,7 +23,11 @@ type RuleDrawerValue = {
   openAllRules: () => void;
 };
 
-const RuleDrawerContext = createContext<RuleDrawerValue | null>(null);
+// Keep a single context instance across hot reloads so provider and consumers always match.
+const globalKey = "__allyRuleDrawerContext" as const;
+const g = globalThis as unknown as Record<string, React.Context<RuleDrawerValue | null> | undefined>;
+const RuleDrawerContext: React.Context<RuleDrawerValue | null> =
+  g[globalKey] ?? (g[globalKey] = createContext<RuleDrawerValue | null>(null));
 
 export function RuleDrawerProvider({ children }: { children: ReactNode }) {
   const [drawer, setDrawer] = useState<DrawerState>(null);
