@@ -12,6 +12,8 @@ import {
   auditSku,
   complianceScore,
   hasBulletHeader,
+  bulletClarity,
+  BULLET_CLARITY_TIP,
   hasIdentifier,
   severityCounts,
 } from "@/lib/rules";
@@ -188,6 +190,7 @@ function ReportPage() {
       bullets: s.bullets.length,
       avgBullet: avg(bulletLens),
       headers: s.bullets.filter(hasBulletHeader).length,
+      clear: s.bullets.filter((b) => bulletClarity(b).label === "Clear").length,
       descLen: s.description.length,
       images: s.image_urls.length,
       counts,
@@ -198,10 +201,12 @@ function ReportPage() {
     avgBullet: Math.max(...metrics.map((m) => m.avgBullet)),
     headers: Math.max(...metrics.map((m) => m.headers)),
     descLen: Math.max(...metrics.map((m) => m.descLen)),
+    clear: Math.max(...metrics.map((m) => m.clear)),
   };
 
   type Row = {
     label: string;
+    tip?: string;
     cells: { value: string; tone: Tone }[];
   };
 
