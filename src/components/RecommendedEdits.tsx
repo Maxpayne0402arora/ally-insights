@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 /* ---------------------------- diff ---------------------------- */
 
 type Op = { t: "same" | "add" | "del"; s: string };
-const tokenize = (s: string) => s.match(/\[confirm:[^\]]*\]|\s+|[^\s]+/gi) ?? [];
+const tokenize = (s: string) => s.match(/\[confirm:[^\]]*\]\s*|\S+\s*/gi) ?? [];
 
 function diffWords(a: string, b: string): Op[] {
   const x = tokenize(a);
