@@ -10,7 +10,7 @@ import { useSkuData } from "@/context/SkuDataContext";
 import { useSkuReview } from "@/context/ReviewContext";
 import { auditSku } from "@/lib/rules";
 import { buildSummary, today } from "@/lib/summary";
-import { TOP3_EDITS_PROMPT_VERSION } from "@/prompts/top3Edits";
+import { CURRENT_PROMPT_VERSION as TOP3_EDITS_PROMPT_VERSION } from "@/prompts";
 import { cn } from "@/lib/utils";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useSkuData } from "@/context/SkuDataContext";
-import { TOP3_EDITS_PROMPT_VERSION, TOP3_EDITS_SYSTEM_PROMPT } from "@/prompts/top3Edits";
+import { CURRENT_PROMPT_VERSION as TOP3_EDITS_PROMPT_VERSION, currentPrompt } from "@/prompts";
 import {
   buildPayload,
   extractJson,
@@ -83,15 +83,15 @@ type Ctx = {
 
 const GenerationContext = createContext<Ctx | null>(null);
 
-class GenError extends Error {
+export class GenError extends Error {
   constructor(public code: ErrorCode, public detail: string) {
     super(detail);
   }
 }
 
-type CallResult = { text: string; model: string; finish_reason: string; usage: unknown };
+export type CallResult = { text: string; model: string; finish_reason: string; usage: unknown };
 
-async function callOnce(system: string, user: string, signal: AbortSignal): Promise<CallResult> {
+export async function callOnce(system: string, user: string, signal: AbortSignal): Promise<CallResult> {
   let res: Response;
   try {
     res = await fetch("/api/generate-edits", {
@@ -172,7 +172,7 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
       setJob(key, { status: "running", startedAt });
 
       const built = buildPayload(sku, allSkus, (id) => dismissed(sku.sku_id, id));
-      const system = TOP3_EDITS_SYSTEM_PROMPT;
+      const system = currentPrompt().system;
       const user = JSON.stringify(built.payload);
       const attempts: AttemptLog[] = [];
       const outcomes: ({ result: AiResult; failures: GuardFailure[] } | null)[] = [];
