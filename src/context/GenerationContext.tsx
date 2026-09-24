@@ -10,6 +10,9 @@ import {
   INVALID_JSON_MSG,
   normalize,
   runGuardrail,
+  rankEdits,
+  type EditScore,
+  type PayloadFinding,
   type AiResult,
   type GuardFailure,
 } from "@/lib/top3";
@@ -46,7 +49,23 @@ export type StoredResult = {
   keptAttempt: number;
   result: AiResult;
   failures: GuardFailure[];
+  /** Per-edit code-computed scores, aligned with result.top_edits. */
+  scores?: EditScore[] | undefined;
+  /** Sorted active finding ids the result was generated from. */
+  activeFindingIds?: string[] | undefined;
 };
+
+function upgrade(stored: StoredResult): StoredResult {
+  if (stored.scores && stored.activeFindingIds) return stored;
+  let findings: PayloadFinding[] = [];
+  try {
+    findings = (JSON.parse(stored.userPayload) as { findings?: PayloadFinding[] }).findings ?? [];
+  } catch {
+    /* ignore */
+  }
+  const ranked = rankEdits(stored.result, stored.failures, findings);
+  return { ...stored, ...ranked, activeFindingIds: findings.map((f) => f.id).sort() };
+}
 
 export type JobState =
   | { status: "running"; startedAt: number }
@@ -58,6 +77,8 @@ type Ctx = {
   jobs: Record<string, JobState>;
   generate: (sku: Sku) => void;
   cancel: (skuId: string) => void;
+  /** Cache keys whose generation the user cancelled in this session. */
+  cancelled: Set<string>;
 };
 
 const GenerationContext = createContext<Ctx | null>(null);
@@ -102,7 +123,8 @@ function readStorage(): Record<string, StoredResult> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? (JSON.parse(raw) as Record<string, StoredResult>) : {};
-    return parsed && typeof parsed === "object" ? parsed : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, upgrade(v)]));
   } catch {
     return {};
   }
@@ -113,6 +135,7 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [results, setResults] = useState<Record<string, StoredResult>>({});
   const [jobs, setJobs] = useState<Record<string, JobState>>({});
+  const [cancelled, setCancelled] = useState<Set<string>>(() => new Set());
   const controllers = useRef<Record<string, AbortController>>({});
   const latest = useRef({ skus, datasetId, isDismissed });
   latest.current = { skus, datasetId, isDismissed };
@@ -204,11 +227,13 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
 
           if (latest.current.datasetId !== startDataset) return; // dataset replaced — discard silently
 
+          const ranked = rankEdits(chosen.result, chosen.failures, built.findings);
           const stored: StoredResult = {
             cacheKey: key, datasetId: startDataset, sku_id: sku.sku_id, promptVersion: TOP3_EDITS_PROMPT_VERSION,
             generatedAt: new Date().toISOString(), durationMs: Date.now() - startedAt,
             model: attempts[kept]?.model ?? null, system, userPayload: user, attempts, keptAttempt: kept + 1,
-            result: chosen.result, failures: chosen.failures,
+            result: ranked.result, failures: ranked.failures, scores: ranked.scores,
+            activeFindingIds: built.findings.map((f) => f.id).sort(),
           };
           setResults((prev) => {
             const next = { ...prev, [key]: stored };
@@ -252,11 +277,19 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
   );
 
   const cancel = useCallback(
-    (skuId: string) => controllers.current[cacheKeyFor(skuId)]?.abort(),
+    (skuId: string) => {
+      const key = cacheKeyFor(skuId);
+      if (!controllers.current[key]) return;
+      setCancelled((prev) => new Set(prev).add(key));
+      controllers.current[key]?.abort();
+    },
     [cacheKeyFor],
   );
 
-  const value = useMemo(() => ({ cacheKeyFor, results, jobs, generate, cancel }), [cacheKeyFor, results, jobs, generate, cancel]);
+  const value = useMemo(
+    () => ({ cacheKeyFor, results, jobs, generate, cancel, cancelled }),
+    [cacheKeyFor, results, jobs, generate, cancel, cancelled],
+  );
   return <GenerationContext.Provider value={value}>{children}</GenerationContext.Provider>;
 }
 

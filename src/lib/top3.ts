@@ -245,7 +245,7 @@ const CLAIM_WORDS = [
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const wordRe = (w: string) => new RegExp(`(?<![A-Za-z0-9])${escapeRe(w).replace(/\s+/g, "\\s+")}(?![A-Za-z0-9])`, "i");
 
-function inventedClaims(proposed: string, source: string): string[] {
+export function inventedClaims(proposed: string, source: string): string[] {
   const text = maskPlaceholders(proposed);
   const found = new Set<string>();
   for (const m of text.matchAll(/(?<![A-Za-z0-9])[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*-free(?![A-Za-z0-9])/gi)) {
@@ -393,4 +393,70 @@ export function runGuardrail(
 export function formatFailuresForRetry(failures: GuardFailure[]) {
   const list = failures.map((f, i) => `${i + 1}. ${f.edit_rank != null ? `Edit #${f.edit_rank}: ` : ""}${f.detail}`).join("\n");
   return `Your previous output failed these checks:\n${list}\nFix them and return corrected JSON only.`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Ranking (computed in code — the AI's order is ignored)              */
+/* ------------------------------------------------------------------ */
+
+export const SEVERITY_WEIGHT = { high: 10, medium: 4, low: 1 } as const;
+export const VISIBILITY_WEIGHT: Record<EditField, number> = { title: 3, bullets: 2, description: 1 };
+export const COMPETITIVE_BONUS = 2;
+export const RANK_FORMULA =
+  "Score = severity of fixed findings (high 10, medium 4, low 1; interpretation matches count half) + visibility (title 3, bullets 2, description 1) + competitive bonus 2 if a competitive change passed the guardrail. Ties: title > bullets > description.";
+
+export type EditScore = {
+  field: EditField;
+  severity: number;
+  visibility: number;
+  competitive: number;
+  total: number;
+  counts: { high: number; medium: number; low: number };
+};
+
+export function scoreEdit(e: Edit, findings: PayloadFinding[], failures: GuardFailure[]): EditScore {
+  const byId = new Map(findings.map((f) => [f.id, f]));
+  const counts = { high: 0, medium: 0, low: 0 };
+  let severity = 0;
+  e.resolves_finding_ids.forEach((id) => {
+    const f = byId.get(id);
+    if (!f) return;
+    counts[f.severity] += 1;
+    severity += SEVERITY_WEIGHT[f.severity] * (f.match_type === "interpretation" ? 0.5 : 1);
+  });
+  const compFail = failures.some((f) => f.check === "competitor_ref" || f.check === "competitor_evidence");
+  const competitive = !compFail && e.changes.some((c) => c.type === "competitive") ? COMPETITIVE_BONUS : 0;
+  const visibility = VISIBILITY_WEIGHT[e.field];
+  return { field: e.field, severity, visibility, competitive, total: severity + visibility + competitive, counts };
+}
+
+const FIELD_PHRASE: Record<EditField, string> = {
+  title: "the title, the most visible field",
+  bullets: "the bullets",
+  description: "the description",
+};
+
+export function rankReason(rank: number, s: EditScore): string {
+  const parts: string[] = [];
+  if (s.counts.high) parts.push(`${s.counts.high} high-risk`);
+  if (s.counts.medium) parts.push(`${s.counts.medium} medium`);
+  if (s.counts.low) parts.push(`${s.counts.low} low`);
+  const n = s.counts.high + s.counts.medium + s.counts.low;
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
+  const base = n
+    ? `Ranked #${rank}: fixes ${list} issue${n === 1 ? "" : "s"} in ${FIELD_PHRASE[s.field]}.`
+    : `Ranked #${rank}: no guideline fixes; improves ${FIELD_PHRASE[s.field]}.`;
+  return s.competitive ? `${base} Includes a verified competitive improvement.` : base;
+}
+
+export function rankEdits(result: AiResult, failures: GuardFailure[], findings: PayloadFinding[]) {
+  const scored = result.top_edits.map((e) => ({ e, s: scoreEdit(e, findings, failures.filter((f) => f.edit_rank === e.rank)) }));
+  scored.sort((a, b) => b.s.total - a.s.total || VISIBILITY_WEIGHT[b.e.field] - VISIBILITY_WEIGHT[a.e.field]);
+  const rankMap = new Map<number, number>();
+  scored.forEach((x, i) => rankMap.set(x.e.rank, i + 1));
+  return {
+    result: { ...result, top_edits: scored.map((x, i) => ({ ...x.e, rank: i + 1 })) },
+    failures: failures.map((f) => (f.edit_rank == null ? f : { ...f, edit_rank: rankMap.get(f.edit_rank) ?? f.edit_rank })),
+    scores: scored.map((x) => x.s),
+  };
 }
