@@ -6,8 +6,7 @@ import { RoleBadge, ScoreBadge } from "@/components/ScoreBadge";
 import { useSkuData } from "@/context/SkuDataContext";
 import { auditSku, complianceScore } from "@/lib/rules";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
@@ -121,10 +120,15 @@ function SelectSkuPage() {
           <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search brand, SKU or title" aria-label="Search SKUs" className="pl-9" />
         </div>
-        <div className="flex min-h-11 items-center gap-2">
-          <Switch id="clients-only" checked={clientsOnly} onCheckedChange={setClientsOnly} />
-          <Label htmlFor="clients-only">Clients only</Label>
-        </div>
+        <Button
+          type="button"
+          variant={clientsOnly ? "default" : "outline"}
+          aria-pressed={clientsOnly}
+          onClick={() => setClientsOnly((value) => !value)}
+          className="min-h-11"
+        >
+          Clients only
+        </Button>
         <Select value={sort} onValueChange={(value) => setSort(value as "score" | "brand")}>
           <SelectTrigger aria-label="Sort SKUs"><SelectValue /></SelectTrigger>
           <SelectContent>

@@ -376,7 +376,7 @@ function ReportPage() {
                 </h3>
                 <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
                   {list.map((f) => (
-                    <li key={f.id}>
+                    <li key={f.id} className="flex items-start gap-3 px-4 py-3">
                       <button
                         type="button"
                         onClick={() => {
@@ -385,7 +385,7 @@ function ReportPage() {
                           target?.animate([{ outline: "3px solid currentColor" }, { outline: "0 solid transparent" }], { duration: 1400 });
                           target?.focus({ preventScroll: true });
                         }}
-                        className="flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                        className="flex min-w-0 flex-1 gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                       <span
                         className={cn(
@@ -402,23 +402,17 @@ function ReportPage() {
                             {f.evidence}
                           </p>
                         )}
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(event) => { event.stopPropagation(); openRule(f.rule_id); }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              openRule(f.rule_id);
-                            }
-                          }}
-                          className="mt-2 inline-block rounded-md bg-secondary px-2 py-0.5 font-mono text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          {f.rule_id}
-                        </span>
                       </div>
                       </button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => openRule(f.rule_id)}
+                        className="h-auto shrink-0 px-2 py-1 font-mono text-xs text-primary"
+                      >
+                        {f.rule_id}
+                      </Button>
                     </li>
                   ))}
                 </ul>

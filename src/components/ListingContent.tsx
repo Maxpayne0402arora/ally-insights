@@ -12,7 +12,7 @@ const severityClass: Record<Severity, string> = {
 
 function highlightedText(text: string, findings: Finding[]): ReactNode {
   const matches = findings
-    .filter((finding) => finding.evidence && finding.evidence.length < text.length)
+    .filter((finding) => finding.evidence && finding.evidence.length <= text.length)
     .flatMap((finding) => {
       const ranges: { start: number; end: number; finding: Finding }[] = [];
       const source = text.toLowerCase();
