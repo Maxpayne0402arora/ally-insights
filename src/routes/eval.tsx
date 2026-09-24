@@ -207,7 +207,7 @@ function EvalPage() {
   const openOutcome = (o: RowOutcome) => o.record && setDetail(o.record);
   const resumable = (r: EvalRun) => {
     if (progress || (r.status !== "paused" && r.status !== "cancelled")) return false;
-    const done = records[r.id] ? Object.keys(records[r.id]).length : 0;
+    const done = Object.keys(records[r.id] ?? {}).length;
     return done < buildTasks(r).length;
   };
 
