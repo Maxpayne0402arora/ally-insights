@@ -100,26 +100,27 @@ export const Route = createFileRoute("/api/generate-edits")({
           const decoder = new TextDecoder();
           let buffer = "";
           let text = "";
-          let final: {
+          type FinalResponse = {
             status?: string;
             model?: string;
             usage?: unknown;
             incomplete_details?: { reason?: string } | null;
-          } | null = null;
+          };
+          const state: { final: FinalResponse | null } = { final: null };
           let streamError: string | null = null;
 
           const handle = (data: string) => {
             if (!data || data === "[DONE]") return;
-            let evt: { type?: string; delta?: string; response?: typeof final; error?: { message?: string }; message?: string };
+            let evt: { type?: string; delta?: string; response?: FinalResponse; error?: { message?: string }; message?: string };
             try {
               evt = JSON.parse(data);
             } catch {
               return;
             }
             if (evt.type === "response.output_text.delta" && typeof evt.delta === "string") text += evt.delta;
-            else if (evt.type === "response.completed" || evt.type === "response.incomplete") final = evt.response ?? null;
+            else if (evt.type === "response.completed" || evt.type === "response.incomplete") state.final = evt.response ?? null;
             else if (evt.type === "response.failed") {
-              final = evt.response ?? null;
+              state.final = evt.response ?? null;
               streamError = "The AI response failed.";
             } else if (evt.type === "error") streamError = evt.error?.message ?? evt.message ?? "Stream error";
           };
@@ -139,7 +140,7 @@ export const Route = createFileRoute("/api/generate-edits")({
 
           if (streamError && !text) return fail(502, "upstream_error", String(streamError).slice(0, 300));
 
-          const f = final as typeof final;
+          const f = state.final;
           const finish_reason =
             f?.status === "incomplete"
               ? f.incomplete_details?.reason === "max_output_tokens"
