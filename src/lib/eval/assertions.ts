@@ -15,7 +15,11 @@ const proposed = (e: Edit) => joined(e.proposed_full);
 
 export function assertionsFor(row: EvalRow): Assertion[] {
   const out = [...row.assertions];
-  if (row.sku.is_client) out.push({ type: "guardrail_pass" }, { type: "brand_preserved" });
+  if (row.sku.is_client) {
+    for (const t of ["guardrail_pass", "brand_preserved"] as const) {
+      if (!out.some((a) => a.type === t)) out.push({ type: t });
+    }
+  }
   return out;
 }
 
@@ -38,7 +42,7 @@ export function evalAiAssertion(a: Assertion, rec: SkuRecord, sku: Sku): Asserti
   const label = assertionLabel(a);
   const base = { label, type: a.type, kind: "ai" as const };
   const r = rec.result;
-  if (rec.status !== "ok" || !r) return { ...base, pass: false, reason: "Generation failed" };
+  if (rec.status !== "ok" || !r) return { ...base, pass: false, reason: `Generation failed${rec.error ? `: ${rec.error}` : ""}` };
   const ok = (pass: boolean, reason: string) => ({ ...base, pass, reason });
   switch (a.type) {
     case "not_contains": {
