@@ -4,3 +4,4 @@
 - [x] Enhance report listing, findings navigation, SKU switching, breadcrumbs, and invalid/clean states
 - [x] Enhance SKU picker search, filtering, sorting, and breadcrumbs
 - [x] Verify desktop and mobile flows without horizontal body overflow
+- [x] Step 2: AI top-3 recommended edits with guardrail, retry, caching, under-the-hood view

@@ -15,6 +15,7 @@ import { SkuDataProvider } from "@/context/SkuDataContext";
 import { TopNav } from "@/components/TopNav";
 import { Toaster } from "@/components/ui/sonner";
 import { RuleDrawerProvider } from "@/context/RuleDrawerContext";
+import { GenerationProvider } from "@/context/GenerationContext";
 
 function NotFoundComponent() {
   return (
@@ -130,6 +131,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <SkuDataProvider>
+        <GenerationProvider>
         <RuleDrawerProvider>
           <div className="min-h-screen overflow-x-clip bg-background">
             <TopNav />
@@ -140,6 +142,7 @@ function RootComponent() {
           </div>
           <Toaster position="top-right" />
         </RuleDrawerProvider>
+        </GenerationProvider>
       </SkuDataProvider>
     </QueryClientProvider>
   );

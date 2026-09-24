@@ -1,11 +1,17 @@
+import { useEffect } from "react";
 import { auditSku, complianceScore } from "@/lib/rules";
 import type { Sku } from "@/types/sku";
 import { ListingContent } from "@/components/ListingContent";
 import { RoleBadge, ScoreBadge } from "@/components/ScoreBadge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
-export function CompetitorDrawer({ sku, allSkus, onClose }: { sku: Sku | null; allSkus: Sku[]; onClose: () => void }) {
+export function CompetitorDrawer({ sku, allSkus, onClose, evidence }: { sku: Sku | null; allSkus: Sku[]; onClose: () => void; evidence?: string | undefined }) {
   const findings = sku ? auditSku(sku, allSkus) : [];
+  useEffect(() => {
+    if (!sku || !evidence) return;
+    const t = setTimeout(() => document.querySelector('[data-evidence="true"]')?.scrollIntoView({ block: "center" }), 250);
+    return () => clearTimeout(t);
+  }, [sku, evidence]);
   return (
     <Sheet open={sku !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-xl">
@@ -20,7 +26,12 @@ export function CompetitorDrawer({ sku, allSkus, onClose }: { sku: Sku | null; a
               <SheetDescription>{sku.sku_id} · {sku.category}</SheetDescription>
             </SheetHeader>
             <div className="p-5 sm:p-6">
-              <ListingContent sku={sku} allSkus={allSkus} showHeading={false} />
+              {evidence && (
+                <p className="mb-5 break-words rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-foreground">
+                  <span className="font-medium text-primary">Evidence cited: </span>"{evidence}"
+                </p>
+              )}
+              <ListingContent sku={sku} allSkus={allSkus} showHeading={false} evidence={evidence} />
               <section className="mt-8 border-t border-border pt-6">
                 <h2 className="text-base font-semibold text-foreground">Findings ({findings.length})</h2>
                 {findings.length ? (

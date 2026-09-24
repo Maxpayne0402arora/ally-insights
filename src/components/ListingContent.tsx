@@ -55,7 +55,11 @@ function highlightedText(text: string, findings: Finding[]): ReactNode {
           <mark
             data-finding-ids={seg.findings.map((f) => f.id).join(" ")}
             tabIndex={0}
-            className={cn("rounded-sm px-0.5 ring-1 transition", severityClass[seg.severity])}
+            data-evidence={seg.findings.some((f) => f.id === EVIDENCE_ID) ? "true" : undefined}
+            className={cn(
+              "rounded-sm px-0.5 ring-1 transition",
+              seg.findings.some((f) => f.id === EVIDENCE_ID) ? "bg-primary/15 text-primary ring-primary/40" : severityClass[seg.severity],
+            )}
           >
             {chunk}
           </mark>
@@ -82,9 +86,27 @@ function highlightedText(text: string, findings: Finding[]): ReactNode {
   return nodes;
 }
 
-export function ListingContent({ sku, allSkus, showHeading = true }: { sku: Sku; allSkus: Sku[]; showHeading?: boolean }) {
+const EVIDENCE_ID = "__evidence__";
+
+function evidenceFinding(text: string, evidence?: string): Finding[] {
+  if (!evidence) return [];
+  const hay = text.toLowerCase();
+  const needle = evidence.toLowerCase();
+  const ranges = [];
+  for (let i = hay.indexOf(needle); i >= 0 && needle; i = hay.indexOf(needle, i + needle.length)) ranges.push({ start: i, end: i + needle.length });
+  return ranges.length
+    ? [{ id: EVIDENCE_ID, rule_id: "Evidence", field: "", severity: "low", message: "Quoted by the AI as competitor evidence", evidence, ranges }]
+    : [];
+}
+
+export function ListingContent({ sku, allSkus, showHeading = true, evidence }: { sku: Sku; allSkus: Sku[]; showHeading?: boolean; evidence?: string | undefined }) {
   const findings = useMemo(() => auditSku(sku, allSkus), [sku, allSkus]);
-  const fieldFindings = (field: string) => findings.filter((finding) => finding.field === field);
+  const fieldText = (field: string) =>
+    field === "title" ? sku.title : field === "description" ? sku.description : (sku.bullets[Number(field.split("_")[1]) - 1] ?? "");
+  const fieldFindings = (field: string) => [
+    ...findings.filter((finding) => finding.field === field),
+    ...evidenceFinding(fieldText(field), evidence),
+  ];
 
   return (
     <TooltipProvider delayDuration={250}>

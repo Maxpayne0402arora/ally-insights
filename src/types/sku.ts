@@ -19,6 +19,8 @@ export type Finding = {
   severity: Severity;
   message: string;
   evidence: string;
+  /** "explicit" = text directly matches a listed term; "interpretation" = falls under the rule's category. */
+  match_type?: "explicit" | "interpretation";
   /** Exact character ranges of every occurrence in the ORIGINAL field text. */
   ranges?: TextRange[];
 };
