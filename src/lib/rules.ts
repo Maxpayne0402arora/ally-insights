@@ -475,7 +475,7 @@ export function checkBullets(
           0,
           "medium",
           `ALL CAPS word "${strayCaps[0]}" outside the bullet header.`,
-          strayCaps[0],
+          strayCaps[0] ?? "",
         ),
       );
     }
