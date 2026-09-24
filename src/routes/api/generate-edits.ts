@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 
 const MODEL = "openai/gpt-6-astra";
 const MAX_CHARS = 60_000;
-const LIMIT_PER_HOUR = 30;
+// High enough for a full Eval run (each SKU may use 2 calls).
+const LIMIT_PER_HOUR = 300;
 const HOUR = 60 * 60 * 1000;
 
 // Simple per-client limiter (per server instance).

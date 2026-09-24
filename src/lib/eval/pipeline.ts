@@ -6,7 +6,7 @@ import {
 import type { Sku } from "@/types/sku";
 import type { AttemptRecord, SkuRecord } from "./types";
 
-const TIMEOUT_MS = 90_000;
+const TIMEOUT_MS = 240_000;
 
 /** Same pipeline as the review flow: payload → call → parse → guardrail → one retry → ranking in code. */
 export async function runSkuPipeline(
