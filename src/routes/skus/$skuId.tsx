@@ -24,7 +24,7 @@ import { ListingContent } from "@/components/ListingContent";
 import { CompetitorDrawer } from "@/components/CompetitorDrawer";
 import { useRuleDrawer } from "@/context/RuleDrawerContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
@@ -478,14 +478,20 @@ function ReportPage() {
                       key={`${row.label}-${columns[i]?.sku_id}`}
                       className={cn("px-4 py-3", i === 0 && "bg-primary/5")}
                     >
-                      <span
-                        className={cn(
-                          "inline-block rounded-md px-2 py-1 text-xs font-medium",
-                          toneCls[cell.tone],
-                        )}
-                      >
-                        {cell.value}
-                      </span>
+                      {row.tip ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span tabIndex={0} className={cn("inline-block rounded-md px-2 py-1 text-xs font-medium", toneCls[cell.tone])}>
+                              {cell.value}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">{row.tip}</TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className={cn("inline-block rounded-md px-2 py-1 text-xs font-medium", toneCls[cell.tone])}>
+                          {cell.value}
+                        </span>
+                      )}
                     </td>
                   ))}
                 </tr>
