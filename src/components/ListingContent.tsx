@@ -10,56 +10,75 @@ const severityClass: Record<Severity, string> = {
   low: "bg-secondary text-muted-foreground ring-border",
 };
 
+const weight: Record<Severity, number> = { high: 3, medium: 2, low: 1 };
+type Segment = { start: number; end: number; severity: Severity; findings: Finding[] };
+
+/** Build highlight segments in one pass, always slicing from the original text. */
+export function buildSegments(text: string, findings: Finding[]): Segment[] {
+  const ranges = findings
+    .flatMap((finding) => (finding.ranges ?? []).map((r) => ({ ...r, finding })))
+    .filter((r) => r.start >= 0 && r.end <= text.length && r.end > r.start)
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+  const merged: Segment[] = [];
+  for (const r of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && (r.start <= last.end || /^[ \t]+$/.test(text.slice(last.end, r.start)))) {
+      last.end = Math.max(last.end, r.end);
+      if (weight[r.finding.severity] > weight[last.severity]) last.severity = r.finding.severity;
+      if (!last.findings.includes(r.finding)) last.findings.push(r.finding);
+    } else {
+      merged.push({ start: r.start, end: r.end, severity: r.finding.severity, findings: [r.finding] });
+    }
+  }
+  return merged;
+}
+
 function highlightedText(text: string, findings: Finding[]): ReactNode {
-  const matches = findings
-    .filter((finding) => finding.evidence && finding.evidence.length <= text.length)
-    .flatMap((finding) => {
-      const ranges: { start: number; end: number; finding: Finding }[] = [];
-      const source = text.toLowerCase();
-      const evidence = finding.evidence.toLowerCase();
-      let start = source.indexOf(evidence);
-      while (start >= 0) {
-        ranges.push({ start, end: start + evidence.length, finding });
-        start = source.indexOf(evidence, start + Math.max(1, evidence.length));
-      }
-      return ranges;
-    })
-    .sort((a, b) => {
-      const weight = { high: 0, medium: 1, low: 2 };
-      return weight[a.finding.severity] - weight[b.finding.severity]
-        || (a.end - a.start) - (b.end - b.start)
-        || a.start - b.start;
-    });
+  if (!text) return <span className="italic text-muted-foreground">Not provided</span>;
+  const segments = buildSegments(text, findings);
+  if (!segments.length) return text;
 
-  const accepted: typeof matches = [];
-  matches.forEach((match) => {
-    if (!accepted.some((current) => match.start < current.end && match.end > current.start)) accepted.push(match);
-  });
-  if (!accepted.length) return text || <span className="italic text-muted-foreground">Not provided</span>;
-
+  const plain: string[] = [];
   const nodes: ReactNode[] = [];
   let cursor = 0;
-  accepted.forEach((match) => {
-    if (match.start > cursor) nodes.push(text.slice(cursor, match.start));
+  for (const seg of segments) {
+    if (seg.start > cursor) {
+      const chunk = text.slice(cursor, seg.start);
+      plain.push(chunk);
+      nodes.push(chunk);
+    }
+    const chunk = text.slice(seg.start, seg.end);
+    plain.push(chunk);
     nodes.push(
-      <Tooltip key={`${match.finding.id}-${match.start}`}>
+      <Tooltip key={`seg-${seg.start}`}>
         <TooltipTrigger asChild>
           <mark
-            id={`evidence-${match.finding.id}`}
+            data-finding-ids={seg.findings.map((f) => f.id).join(" ")}
             tabIndex={0}
-            className={cn("rounded-sm px-0.5 ring-1 transition", severityClass[match.finding.severity])}
+            className={cn("rounded-sm px-0.5 ring-1 transition", severityClass[seg.severity])}
           >
-            {text.slice(match.start, match.end)}
+            {chunk}
           </mark>
         </TooltipTrigger>
-        <TooltipContent className="max-w-xs">
-          <span className="font-mono">{match.finding.rule_id}</span> · {match.finding.message}
+        <TooltipContent className="max-w-xs space-y-1">
+          {seg.findings.map((f) => (
+            <p key={f.id}>
+              <span className="font-mono">{f.rule_id}</span> · {f.message}
+            </p>
+          ))}
         </TooltipContent>
       </Tooltip>,
     );
-    cursor = match.end;
-  });
-  if (cursor < text.length) nodes.push(text.slice(cursor));
+    cursor = seg.end;
+  }
+  if (cursor < text.length) {
+    plain.push(text.slice(cursor));
+    nodes.push(text.slice(cursor));
+  }
+  if (plain.join("") !== text) {
+    if (import.meta.env.DEV) console.error("[ListingContent] highlight segments do not reproduce the original text; rendering without highlights.");
+    return text;
+  }
   return nodes;
 }
 

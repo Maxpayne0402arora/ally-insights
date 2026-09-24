@@ -1,82 +1,55 @@
-import type { Finding, Severity, Sku } from "@/types/sku";
+import type { Finding, Severity, Sku, TextRange } from "@/types/sku";
 
 /* ------------------------------------------------------------------ */
-/* Helpers                                                             */
+/* Matching helpers                                                    */
 /* ------------------------------------------------------------------ */
+
+export type Match = TextRange & { text: string };
+export type Term = string | RegExp;
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const isAlnum = (c: string | undefined) => !!c && /[A-Za-z0-9]/.test(c);
 
-/** Word-boundary-aware, case-insensitive phrase matcher. */
-export function findPhrases(text: string, phrases: string[]): string[] {
-  const hits: string[] = [];
-  for (const phrase of phrases) {
-    const escaped = escapeRe(phrase).replace(/\s+/g, "\\s+");
-    const startsWord = /^[\w#]/.test(phrase) && /^\w/.test(phrase);
-    const endsWord = /\w$/.test(phrase);
-    const pattern =
-      (startsWord ? "(?<![A-Za-z0-9])" : "") +
-      escaped +
-      (endsWord ? "(?![A-Za-z0-9])" : "");
-    const re = new RegExp(pattern, "gi");
-    const m = text.match(re);
-    if (m) hits.push(...m);
+function termToRegExp(term: Term): RegExp {
+  if (term instanceof RegExp) {
+    const flags = term.flags.includes("g") ? term.flags : term.flags + "g";
+    return new RegExp(term.source, flags.includes("i") ? flags : flags + "i");
   }
-  return hits;
+  const body = escapeRe(term)
+    .replace(/\s+/g, "\\s+")
+    .replace(/'/g, "['\u2019]");
+  const pattern =
+    (isAlnum(term[0]) ? "(?<![A-Za-z0-9])" : "") +
+    body +
+    (isAlnum(term[term.length - 1]) ? "(?![A-Za-z0-9])" : "");
+  return new RegExp(pattern, "gi");
 }
 
-const UNIT_WORDS = [
-  "OZ",
-  "FLOZ",
-  "LB",
-  "LBS",
-  "CT",
-  "PACK",
-  "COUNT",
-  "USA",
-  "GMO",
-  "ML",
-  "KG",
-  "XL",
-  "XXL",
-];
+/** Every occurrence of every term, as ranges into the original text. Whole words only. */
+export function findRanges(text: string, terms: Term[]): Match[] {
+  const out: Match[] = [];
+  for (const term of terms) {
+    const re = termToRegExp(term);
+    for (const m of text.matchAll(re)) {
+      if (!m[0]) continue;
+      const start = m.index ?? 0;
+      out.push({ start, end: start + m[0].length, text: m[0] });
+    }
+  }
+  return out.sort((a, b) => a.start - b.start || b.end - a.end);
+}
+
+/** Word-boundary-aware, case-insensitive phrase matcher (matched strings). */
+export function findPhrases(text: string, phrases: Term[]): string[] {
+  return findRanges(text, phrases).map((m) => m.text);
+}
+
+const UNIT_WORDS = ["OZ", "FLOZ", "LB", "LBS", "CT", "PACK", "COUNT", "USA", "GMO", "ML", "KG", "XL", "XXL"];
 
 const STOPWORDS = new Set([
-  "with",
-  "from",
-  "your",
-  "this",
-  "that",
-  "they",
-  "them",
-  "than",
-  "then",
-  "have",
-  "into",
-  "over",
-  "more",
-  "also",
-  "very",
-  "when",
-  "will",
-  "each",
-  "made",
-  "made",
-  "just",
-  "only",
-  "some",
-  "such",
-  "their",
-  "there",
-  "these",
-  "those",
-  "about",
-  "which",
-  "other",
-  "while",
-  "would",
-  "could",
-  "been",
-  "being",
+  "with", "from", "your", "this", "that", "they", "them", "than", "then", "have", "into", "over",
+  "more", "also", "very", "when", "will", "each", "made", "just", "only", "some", "such", "their",
+  "there", "these", "those", "about", "which", "other", "while", "would", "could", "been", "being",
 ]);
 
 export const IDENTIFIER_RE =
@@ -84,17 +57,25 @@ export const IDENTIFIER_RE =
 
 export const hasIdentifier = (title: string) => IDENTIFIER_RE.test(title);
 
-export const HEADER_RE = /^\s*([A-Z0-9][A-Z0-9'&/-]*\s+)+?[A-Z0-9'&/-]*\s*:/;
-export const hasBulletHeader = (b: string) =>
-  HEADER_RE.test(b) || /^\s*[A-Z0-9][A-Z0-9\s'&/,-]{2,}:/.test(b);
+/** A leading capitalised phrase followed by a colon. " - " / " – " separators are NOT headers. */
+export const HEADER_RE = /^\s*[A-Z0-9][A-Za-z0-9 '&/,]{0,58}:/;
+export const hasBulletHeader = (b: string) => HEADER_RE.test(b);
+
+const CAPS_RE = /(?<![A-Za-z0-9])[A-Z][A-Z'-]{3,}(?![A-Za-z0-9])/g;
+
+/** ALL-CAPS words (4+ letters) as ranges, offset into the original text. */
+export function allCapsRanges(text: string, ignore: string[] = [], offset = 0): Match[] {
+  const ignoreSet = new Set([...ignore, ...UNIT_WORDS].map((w) => w.toUpperCase().replace(/[^A-Z]/g, "")));
+  return Array.from(text.matchAll(CAPS_RE))
+    .filter((m) => !ignoreSet.has(m[0].replace(/[^A-Z]/g, "")))
+    .map((m) => ({ start: (m.index ?? 0) + offset, end: (m.index ?? 0) + offset + m[0].length, text: m[0] }));
+}
 
 export function allCapsWords(text: string, ignore: string[] = []): string[] {
-  const ignoreSet = new Set(
-    [...ignore, ...UNIT_WORDS].map((w) => w.toUpperCase()),
-  );
-  const matches = text.match(/\b[A-Z][A-Z'-]{3,}\b/g) ?? [];
-  return matches.filter((w) => !ignoreSet.has(w.replace(/[^A-Z]/g, "")));
+  return allCapsRanges(text, ignore).map((m) => m.text);
 }
+
+const truncate = (s: string, n = 160) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
 const mk = (
   field: string,
@@ -103,6 +84,7 @@ const mk = (
   severity: Severity,
   message: string,
   evidence: string,
+  ranges?: TextRange[],
 ): Finding => ({
   id: `${field}:${rule_id}:${index}`,
   rule_id,
@@ -110,129 +92,85 @@ const mk = (
   severity,
   message,
   evidence,
+  ...(ranges && ranges.length ? { ranges } : {}),
 });
 
-const truncate = (s: string, n = 160) =>
-  s.length > n ? `${s.slice(0, n)}…` : s;
-
-/* ------------------------------------------------------------------ */
-/* Shared restricted-content checks (any field)                        */
-/* ------------------------------------------------------------------ */
-
-const TIME_SENSITIVE = [
-  "order now",
-  "order today",
-  "buy now",
-  "limited time",
-  "while supplies last",
-  "don't miss out",
-  "dont miss out",
-];
-const GUARANTEE_TERMS = [
-  "money back",
-  "satisfaction guaranteed",
-  "100% guaranteed",
-  "warranty",
-];
-const REVIEW_TERMS = [
-  "5-star",
-  "5 star",
-  "rated",
-  "customers love",
-  "dogs love",
-  "reviews",
-];
-
-function restrictedChecks(
+/** One finding per field + rule, listing all occurrences as evidence and keeping every range. */
+function fromMatches(
   field: string,
-  text: string,
-  sku: Sku,
-  allSkus: Sku[],
+  rule_id: string,
+  severity: Severity,
+  matches: Match[],
+  message: (terms: string[]) => string,
 ): Finding[] {
-  const out: Finding[] = [];
+  if (!matches.length) return [];
+  const seen = new Map<string, string>();
+  matches.forEach((m) => {
+    const key = m.text.toLowerCase().replace(/\s+/g, " ");
+    if (!seen.has(key)) seen.set(key, m.text);
+  });
+  const terms = Array.from(seen.values());
+  const ranges = matches
+    .map(({ start, end }) => ({ start, end }))
+    .filter((r, i, all) => all.findIndex((o) => o.start === r.start && o.end === r.end) === i);
+  return [mk(field, rule_id, 0, severity, message(terms), terms.join(" · "), ranges)];
+}
 
-  findPhrases(text, TIME_SENSITIVE).forEach((hit, i) =>
-    out.push(
-      mk(
-        field,
-        "AMZ-RESTRICT-02",
-        i,
-        "high",
-        "Time-sensitive / urgency claim is not allowed in listing content.",
-        hit,
-      ),
-    ),
-  );
+const quoteList = (terms: string[]) => terms.map((t) => `"${t}"`).join(", ");
 
-  findPhrases(text, GUARANTEE_TERMS).forEach((hit, i) =>
-    out.push(
-      mk(
-        field,
-        "AMZ-RESTRICT-03",
-        i,
-        "high",
-        "Guarantee or warranty language is not allowed unless it reflects a registered Amazon program.",
-        hit,
-      ),
-    ),
-  );
+/* ------------------------------------------------------------------ */
+/* Shared restricted-content checks (all text fields)                  */
+/* ------------------------------------------------------------------ */
 
-  findPhrases(text, REVIEW_TERMS).forEach((hit, i) =>
-    out.push(
-      mk(
-        field,
-        "AMZ-RESTRICT-05",
-        i,
-        "high",
-        "Reviews, ratings or testimonials must not be referenced in listing content.",
-        hit,
-      ),
-    ),
-  );
+const PROMO_TERMS: Term[] = [
+  "free shipping", "free gift", "deal", "discount", /\d*\s?%\s?off(?![A-Za-z0-9])/, "on sale",
+  /(?<![A-Za-z0-9])buy(?:\s+now)?\s+and\s+save(?![A-Za-z0-9])/, "save $", "save %", "coupon",
+  "great gift", "gift idea",
+];
+const TIME_SENSITIVE: Term[] = [
+  "order now", "order today", "buy now", "limited time", "while supplies last", "don't miss out", "dont miss out",
+];
+const GUARANTEE_TERMS: Term[] = [
+  "money back", "satisfaction guaranteed", "100% satisfaction guaranteed", "100% guaranteed", "warranty",
+  "no questions asked", "risk-free", "risk free",
+];
+const CLAIM_TERMS: Term[] = [
+  "best", "#1", "number one", "world's best", "indestructible", "unbreakable", "clinically proven",
+  "cures", "guaranteed", "incredible", "amazing deal",
+];
+const REVIEW_TERMS: Term[] = [
+  "5-star", "5 star", "rated", "#1 rated", "rated #1", "customers love", "dogs love", "reviews",
+];
 
+function restrictedChecks(field: string, text: string, sku: Sku, allSkus: Sku[]): Finding[] {
   const otherBrands = Array.from(
     new Set(
       allSkus
-        .filter(
-          (s) =>
-            s.brand &&
-            s.brand.toLowerCase() !== (sku.brand ?? "").toLowerCase(),
-        )
+        .filter((s) => s.brand && s.brand.toLowerCase() !== (sku.brand ?? "").toLowerCase())
         .map((s) => s.brand),
     ),
   );
-  const brandHits = otherBrands.filter(
-    (b) => findPhrases(text, [b]).length > 0,
-  );
-  brandHits.forEach((b, i) =>
-    out.push(
-      mk(
-        field,
-        "AMZ-RESTRICT-06",
-        i,
-        "high",
-        `Mentions another brand in the dataset ("${b}").`,
-        b,
-      ),
-    ),
-  );
-
-  return out;
+  return [
+    ...fromMatches(field, "AMZ-RESTRICT-01", "high", findRanges(text, PROMO_TERMS),
+      (t) => `Pricing or promotional language (${quoteList(t)}) is not allowed.`),
+    ...fromMatches(field, "AMZ-RESTRICT-02", "high", findRanges(text, TIME_SENSITIVE),
+      (t) => `Time-sensitive / urgency claim (${quoteList(t)}) is not allowed.`),
+    ...fromMatches(field, "AMZ-RESTRICT-03", "high", findRanges(text, GUARANTEE_TERMS),
+      (t) => `Guarantee or warranty language (${quoteList(t)}) is not allowed unless it reflects a registered Amazon program.`),
+    ...fromMatches(field, "AMZ-RESTRICT-04", "high", findRanges(text, CLAIM_TERMS),
+      (t) => `Unverifiable superlative or absolute claim (${quoteList(t)}).`),
+    ...fromMatches(field, "AMZ-RESTRICT-05", "high", findRanges(text, REVIEW_TERMS),
+      (t) => `Reviews, ratings or testimonials (${quoteList(t)}) must not be referenced.`),
+    ...fromMatches(field, "AMZ-RESTRICT-06", "high", findRanges(text, otherBrands),
+      (t) => `Mentions another brand in the dataset (${quoteList(t)}).`),
+  ];
 }
 
 /* ------------------------------------------------------------------ */
 /* Title                                                               */
 /* ------------------------------------------------------------------ */
 
-const TITLE_PROMO = [
-  "best",
-  "#1",
-  "cheap",
-  "sale",
-  "free shipping",
-  "guaranteed",
-  "great gift",
-];
+const TITLE_PROMO: Term[] = ["best", "#1", "cheap", "sale", "free shipping", "guaranteed", "great gift", /!{2,}/];
 
 export function checkTitle(title: string, sku: Sku, allSkus: Sku[]): Finding[] {
   const out: Finding[] = [];
@@ -240,88 +178,34 @@ export function checkTitle(title: string, sku: Sku, allSkus: Sku[]): Finding[] {
   const t = title ?? "";
 
   if (t.length > 200) {
-    out.push(
-      mk(
-        field,
-        "AMZ-TITLE-01",
-        0,
-        "high",
-        `Title is ${t.length} characters — over the 200 character limit.`,
-        truncate(t),
-      ),
-    );
+    out.push(mk(field, "AMZ-TITLE-01", 0, "high", `Title is ${t.length} characters — over the 200 character limit.`, truncate(t)));
   } else if (t.length > 150) {
-    out.push(
-      mk(
-        field,
-        "AMZ-TITLE-01",
-        0,
-        "low",
-        `Title is ${t.length} characters — over the recommended 150 characters.`,
-        truncate(t),
-      ),
-    );
+    out.push(mk(field, "AMZ-TITLE-01", 0, "low", `Title is ${t.length} characters — over the recommended 150 characters.`, truncate(t)));
   }
 
-  allCapsWords(t, [sku.brand ?? ""]).forEach((w, i) =>
-    out.push(
-      mk(
-        field,
-        "AMZ-TITLE-03",
-        i,
-        "medium",
-        `ALL CAPS word "${w}" in the title. Use title case.`,
-        w,
-      ),
-    ),
-  );
+  out.push(...fromMatches(field, "AMZ-TITLE-03", "medium", allCapsRanges(t, [sku.brand ?? ""]),
+    (w) => `ALL CAPS word${w.length > 1 ? "s" : ""} ${quoteList(w)} in the title. Use title case.`));
 
-  const promoHits = findPhrases(t, TITLE_PROMO);
-  if (/!!/.test(t)) promoHits.push("!!");
-  promoHits.forEach((hit, i) =>
-    out.push(
-      mk(
-        field,
-        "AMZ-TITLE-04",
-        i,
-        "high",
-        `Promotional or subjective term "${hit}" is not allowed in the title.`,
-        hit,
-      ),
-    ),
-  );
+  out.push(...fromMatches(field, "AMZ-TITLE-04", "high", findRanges(t, TITLE_PROMO),
+    (w) => `Promotional or subjective term${w.length > 1 ? "s" : ""} ${quoteList(w)} not allowed in the title.`));
 
-  const counts = new Map<string, number>();
-  (t.toLowerCase().match(/\b[a-z][a-z'-]{3,}\b/g) ?? []).forEach((w) => {
+  const words = Array.from(t.matchAll(/(?<![A-Za-z0-9])[A-Za-z][A-Za-z'-]{3,}(?![A-Za-z0-9])/g));
+  const byWord = new Map<string, Match[]>();
+  words.forEach((m) => {
+    const w = m[0].toLowerCase();
     if (STOPWORDS.has(w)) return;
-    counts.set(w, (counts.get(w) ?? 0) + 1);
+    const list = byWord.get(w) ?? [];
+    list.push({ start: m.index ?? 0, end: (m.index ?? 0) + m[0].length, text: m[0] });
+    byWord.set(w, list);
   });
-  Array.from(counts.entries())
-    .filter(([, n]) => n >= 3)
-    .forEach(([w, n], i) =>
-      out.push(
-        mk(
-          field,
-          "AMZ-TITLE-05",
-          i,
-          "medium",
-          `Keyword "${w}" repeated ${n} times — looks like keyword stuffing.`,
-          w,
-        ),
-      ),
-    );
+  const repeated = Array.from(byWord.entries()).filter(([, l]) => l.length >= 3);
+  if (repeated.length) {
+    out.push(...fromMatches(field, "AMZ-TITLE-05", "medium", repeated.flatMap(([, l]) => l),
+      () => `Repeated keyword${repeated.length > 1 ? "s" : ""} ${repeated.map(([w, l]) => `"${w}" ×${l.length}`).join(", ")} — looks like keyword stuffing.`));
+  }
 
   if (t && !hasIdentifier(t)) {
-    out.push(
-      mk(
-        field,
-        "AMZ-TITLE-06",
-        0,
-        "medium",
-        "Title has no size, count, colour or flavour identifier.",
-        truncate(t),
-      ),
-    );
+    out.push(mk(field, "AMZ-TITLE-06", 0, "medium", "Title has no size, count, colour or flavour identifier.", truncate(t)));
   }
 
   out.push(...restrictedChecks(field, t, sku, allSkus));
@@ -332,152 +216,54 @@ export function checkTitle(title: string, sku: Sku, allSkus: Sku[]): Finding[] {
 /* Bullets                                                             */
 /* ------------------------------------------------------------------ */
 
-const BULLET_PROMO = [
-  "price",
-  "discount",
-  "deal",
-  "save",
-  "sale",
-  "free shipping",
-];
-const BULLET_CLAIMS = [
-  "best",
-  "#1",
-  "never",
-  "cures",
-  "guaranteed",
-  "clinically proven",
-  "indestructible",
-];
+const BULLET_PROMO: Term[] = ["price", "discount", "deal", "save", "sale", "free shipping"];
+const BULLET_CLAIMS: Term[] = ["best", "#1", "never", "cures", "guaranteed", "clinically proven", "indestructible"];
 
-export function checkBullets(
-  bullets: string[],
-  sku: Sku,
-  allSkus: Sku[],
-): Finding[] {
+export function checkBullets(bullets: string[], sku: Sku, allSkus: Sku[]): Finding[] {
   const out: Finding[] = [];
   const list = (bullets ?? []).map((b) => (b ?? "").trim()).filter(Boolean);
 
   if (list.length < 5) {
-    out.push(
-      mk(
-        "bullets",
-        "AMZ-BULLET-01",
-        0,
-        "low",
-        `Only ${list.length} of 5 bullet points are used.`,
-        `${list.length} bullets`,
-      ),
-    );
+    out.push(mk("bullets", "AMZ-BULLET-01", 0, "low", `Only ${list.length} of 5 bullet points are used.`, `${list.length} bullets`));
   } else if (list.length > 5) {
-    out.push(
-      mk(
-        "bullets",
-        "AMZ-BULLET-01",
-        0,
-        "medium",
-        `${list.length} bullet points — Amazon allows up to 5.`,
-        `${list.length} bullets`,
-      ),
-    );
+    out.push(mk("bullets", "AMZ-BULLET-01", 0, "medium", `${list.length} bullet points — Amazon allows up to 5.`, `${list.length} bullets`));
   }
 
   list.forEach((b, idx) => {
     const field = `bullet_${idx + 1}`;
 
     if (b.length > 255) {
-      out.push(
-        mk(
-          field,
-          "AMZ-BULLET-02",
-          0,
-          "medium",
-          `Bullet is ${b.length} characters — over the 255 character guideline.`,
-          truncate(b),
-        ),
-      );
+      out.push(mk(field, "AMZ-BULLET-02", 0, "medium", `Bullet is ${b.length} characters — over the 255 character guideline.`, truncate(b)));
     }
 
-    if (!hasBulletHeader(b)) {
-      out.push(
-        mk(
-          field,
-          "AMZ-BULLET-03",
-          0,
-          "low",
-          'Bullet does not start with a capitalised "HEADER:" phrase.',
-          truncate(b, 80),
-        ),
-      );
+    const header = b.match(HEADER_RE);
+    if (!header) {
+      const dash = b.match(/^(.{1,60}?)\s[-\u2013]\s/);
+      out.push(mk(field, "AMZ-BULLET-03", 0, "low",
+        dash ? 'Leading phrase uses a dash — use a "HEADER:" format.' : 'Bullet does not start with a capitalised "HEADER:" phrase — use a "HEADER:" format.',
+        truncate(dash?.[1] ?? b, 80)));
     }
 
     if (b.length < 40) {
-      out.push(
-        mk(
-          field,
-          "AMZ-BULLET-04",
-          0,
-          "low",
-          "Bullet is very short — likely states a feature without the customer benefit.",
-          b,
-        ),
-      );
+      out.push(mk(field, "AMZ-BULLET-04", 0, "low", "Bullet is very short — likely states a feature without the customer benefit.", b));
     }
 
-    findPhrases(b, BULLET_PROMO).forEach((hit, i) =>
-      out.push(
-        mk(
-          field,
-          "AMZ-BULLET-05",
-          i,
-          "high",
-          `Pricing / promotional term "${hit}" is not allowed in bullets.`,
-          hit,
-        ),
-      ),
-    );
+    out.push(...fromMatches(field, "AMZ-BULLET-05", "high", findRanges(b, BULLET_PROMO),
+      (t) => `Pricing / promotional term${t.length > 1 ? "s" : ""} ${quoteList(t)} not allowed in bullets.`));
 
-    findPhrases(b, BULLET_CLAIMS).forEach((hit, i) =>
-      out.push(
-        mk(
-          field,
-          "AMZ-BULLET-07",
-          i,
-          "high",
-          `Unverifiable superlative or absolute claim "${hit}".`,
-          hit,
-        ),
-      ),
-    );
+    out.push(...fromMatches(field, "AMZ-BULLET-07", "high", findRanges(b, BULLET_CLAIMS),
+      (t) => `Unverifiable superlative or absolute claim${t.length > 1 ? "s" : ""} ${quoteList(t)}.`));
 
-    const headerMatch = b.match(/^[^:]{0,60}:/);
-    const body = headerMatch ? b.slice(headerMatch[0].length) : b;
+    const offset = header ? header[0].length : 0;
+    const body = b.slice(offset);
     const letters = body.replace(/[^A-Za-z]/g, "");
     const uppers = body.replace(/[^A-Z]/g, "");
     const capsRatio = letters.length ? uppers.length / letters.length : 0;
-    const strayCaps = allCapsWords(body, [sku.brand ?? ""]);
     if (capsRatio > 0.5 && letters.length > 0) {
-      out.push(
-        mk(
-          field,
-          "AMZ-BULLET-06",
-          0,
-          "medium",
-          `${Math.round(capsRatio * 100)}% of the bullet body is uppercase.`,
-          truncate(body.trim(), 80),
-        ),
-      );
-    } else if (strayCaps.length) {
-      out.push(
-        mk(
-          field,
-          "AMZ-BULLET-06",
-          0,
-          "medium",
-          `ALL CAPS word "${strayCaps[0]}" outside the bullet header.`,
-          strayCaps[0] ?? "",
-        ),
-      );
+      out.push(mk(field, "AMZ-BULLET-06", 0, "medium", `${Math.round(capsRatio * 100)}% of the bullet body is uppercase.`, truncate(body.trim(), 80)));
+    } else {
+      out.push(...fromMatches(field, "AMZ-BULLET-06", "medium", allCapsRanges(body, [sku.brand ?? ""], offset),
+        (w) => `ALL CAPS word${w.length > 1 ? "s" : ""} ${quoteList(w)} outside the bullet header.`));
     }
 
     out.push(...restrictedChecks(field, b, sku, allSkus));
@@ -490,66 +276,30 @@ export function checkBullets(
 /* Description                                                         */
 /* ------------------------------------------------------------------ */
 
-export function checkDescription(
-  description: string,
-  sku: Sku,
-  allSkus: Sku[],
-): Finding[] {
+const CONTACT_TERMS: Term[] = [
+  /\b(?:https?:\/\/|www\.)[^\s]*[^\s.,!?;:)]/,
+  /\b[\w.+-]+@[\w-]+\.[A-Za-z]{2,}\b/,
+  /(?<![A-Za-z0-9])\+?\d[\d\-.\s()]{7,}\d(?![A-Za-z0-9])/,
+  /\$\s?\d{1,3}(?:,\d{3})*(?:\.\d+)?(?![\d])|\$\s?\d+(?:\.\d+)?/,
+];
+
+export function checkDescription(description: string, sku: Sku, allSkus: Sku[]): Finding[] {
   const out: Finding[] = [];
   const field = "description";
   const d = description ?? "";
 
   if (d.length > 2000) {
-    out.push(
-      mk(
-        field,
-        "AMZ-DESC-01",
-        0,
-        "medium",
-        `Description is ${d.length} characters — over the ~2,000 character guideline.`,
-        `${d.length} characters`,
-      ),
-    );
+    out.push(mk(field, "AMZ-DESC-01", 0, "medium", `Description is ${d.length} characters — over the ~2,000 character guideline.`, `${d.length} characters`));
   }
 
-  const contactHits: string[] = [];
-  const url = d.match(/\b(https?:\/\/|www\.)[^\s]+/gi);
-  const email = d.match(/\b[\w.+-]+@[\w-]+\.[A-Za-z]{2,}\b/g);
-  const phone = d.match(/\b(\+?\d[\d\-.\s()]{7,}\d)\b/g);
-  const price = d.match(/\$\s?\d[\d,.]*/g);
-  [url, email, phone, price].forEach((m) => m && contactHits.push(...m));
-  contactHits.forEach((hit, i) =>
-    out.push(
-      mk(
-        field,
-        "AMZ-DESC-03",
-        i,
-        "high",
-        "Contact details, external links or pricing are not allowed in the description.",
-        hit,
-      ),
-    ),
-  );
+  out.push(...fromMatches(field, "AMZ-DESC-03", "high", findRanges(d, CONTACT_TERMS),
+    (t) => `Contact details, external links or pricing (${quoteList(t)}) are not allowed in the description.`));
 
-  const html = d.match(/<\/?[a-z][^>]*>/gi);
-  (html ?? []).forEach((hit, i) =>
-    out.push(
-      mk(field, "AMZ-DESC-04", i, "medium", "Raw HTML tag in description.", hit),
-    ),
-  );
+  out.push(...fromMatches(field, "AMZ-DESC-04", "medium", findRanges(d, [/<\/?[a-z][^>]*>/]),
+    () => "Raw HTML tag in description."));
 
-  findPhrases(d, ["we", "our", "us", "proud to"]).forEach((hit, i) =>
-    out.push(
-      mk(
-        field,
-        "AMZ-DESC-05",
-        i,
-        "medium",
-        `First-person seller voice ("${hit}") — write in third person.`,
-        hit,
-      ),
-    ),
-  );
+  out.push(...fromMatches(field, "AMZ-DESC-05", "medium", findRanges(d, ["we", "our", "us", "proud to"]),
+    (t) => `First-person seller voice (${quoteList(t)}) — write in third person.`));
 
   out.push(...restrictedChecks(field, d, sku, allSkus));
   return out;
@@ -561,21 +311,9 @@ export function checkDescription(
 
 export function checkImages(imageUrls: string[]): Finding[] {
   const n = (imageUrls ?? []).filter(Boolean).length;
-  if (n === 0)
-    return [
-      mk("images", "AMZ-IMG-01", 0, "high", "No images on this listing.", "0 images"),
-    ];
+  if (n === 0) return [mk("images", "AMZ-IMG-01", 0, "high", "No images on this listing.", "0 images")];
   if (n < 5)
-    return [
-      mk(
-        "images",
-        "AMZ-IMG-01",
-        0,
-        "medium",
-        `Only ${n} image${n === 1 ? "" : "s"} — best practice is 5–7.`,
-        `${n} images`,
-      ),
-    ];
+    return [mk("images", "AMZ-IMG-01", 0, "medium", `Only ${n} image${n === 1 ? "" : "s"} — best practice is 5–7.`, `${n} images`)];
   return [];
 }
 
@@ -595,28 +333,15 @@ export function auditSku(sku: Sku, allSkus: Sku[]): Finding[] {
 export type ValidatableField = "title" | "bullets" | "description";
 
 /** Run the same deterministic checks on arbitrary proposed text. */
-export function validateText(
-  field: ValidatableField,
-  text: string | string[],
-  sku: Sku,
-  allSkus: Sku[],
-): Finding[] {
-  if (field === "title")
-    return checkTitle(Array.isArray(text) ? text.join(" ") : text, sku, allSkus);
-  if (field === "bullets")
-    return checkBullets(Array.isArray(text) ? text : [text], sku, allSkus);
-  return checkDescription(
-    Array.isArray(text) ? text.join("\n") : text,
-    sku,
-    allSkus,
-  );
+export function validateText(field: ValidatableField, text: string | string[], sku: Sku, allSkus: Sku[]): Finding[] {
+  if (field === "title") return checkTitle(Array.isArray(text) ? text.join(" ") : text, sku, allSkus);
+  if (field === "bullets") return checkBullets(Array.isArray(text) ? text : [text], sku, allSkus);
+  return checkDescription(Array.isArray(text) ? text.join("\n") : text, sku, allSkus);
 }
 
 export function complianceScore(findings: Finding[]): number {
   let score = 100;
-  for (const f of findings) {
-    score -= f.severity === "high" ? 15 : f.severity === "medium" ? 8 : 3;
-  }
+  for (const f of findings) score -= f.severity === "high" ? 15 : f.severity === "medium" ? 8 : 3;
   return Math.max(0, score);
 }
 

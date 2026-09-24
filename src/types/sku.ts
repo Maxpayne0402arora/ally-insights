@@ -19,6 +19,10 @@ export type Finding = {
   severity: Severity;
   message: string;
   evidence: string;
+  /** Exact character ranges of every occurrence in the ORIGINAL field text. */
+  ranges?: TextRange[];
 };
+
+export type TextRange = { start: number; end: number };
 
 export type DataSource = "sample" | "upload" | null;

@@ -380,7 +380,7 @@ function ReportPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          const target = document.getElementById(`evidence-${f.id}`)
+                          const target = document.querySelector<HTMLElement>(`[data-finding-ids~="${f.id}"]`)
                             ?? document.getElementById(`listing-field-${f.field}`)
                             ?? (f.field.startsWith("bullet_") ? document.getElementById("listing-field-bullets") : null);
                           target?.scrollIntoView({ behavior: "smooth", block: "center" });
