@@ -24,7 +24,12 @@ function highlightedText(text: string, findings: Finding[]): ReactNode {
       }
       return ranges;
     })
-    .sort((a, b) => a.start - b.start || b.end - a.end);
+    .sort((a, b) => {
+      const weight = { high: 0, medium: 1, low: 2 };
+      return weight[a.finding.severity] - weight[b.finding.severity]
+        || (a.end - a.start) - (b.end - b.start)
+        || a.start - b.start;
+    });
 
   const accepted: typeof matches = [];
   matches.forEach((match) => {
@@ -66,16 +71,16 @@ export function ListingContent({ sku, allSkus, showHeading = true }: { sku: Sku;
     <TooltipProvider delayDuration={250}>
       <div className="space-y-6">
         {showHeading && <h2 className="text-lg font-semibold text-foreground">Current listing</h2>}
-        <div>
+        <div id="listing-field-title" className="scroll-mt-24">
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">Title</h3>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{highlightedText(sku.title, fieldFindings("title"))}</p>
         </div>
-        <div>
+        <div id="listing-field-bullets" className="scroll-mt-24">
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">Bullets</h3>
           {sku.bullets.length ? (
             <ol className="mt-2 space-y-3">
               {sku.bullets.map((bullet, index) => (
-                <li key={`${sku.sku_id}-bullet-${index}`} className="flex gap-3 text-sm leading-6 text-foreground">
+                <li id={`listing-field-bullet_${index + 1}`} key={`${sku.sku_id}-bullet-${index}`} className="scroll-mt-24 flex gap-3 text-sm leading-6 text-foreground">
                   <span className="text-muted-foreground">{index + 1}.</span>
                   <span>{highlightedText(bullet, fieldFindings(`bullet_${index + 1}`))}</span>
                 </li>
@@ -83,11 +88,11 @@ export function ListingContent({ sku, allSkus, showHeading = true }: { sku: Sku;
             </ol>
           ) : <p className="mt-2 text-sm italic text-muted-foreground">No bullets provided</p>}
         </div>
-        <div>
+        <div id="listing-field-description" className="scroll-mt-24">
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">Description</h3>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{highlightedText(sku.description, fieldFindings("description"))}</p>
         </div>
-        <div>
+        <div id="listing-field-images" className="scroll-mt-24">
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">Images</h3>
           <p className="mt-2 text-sm text-foreground">{sku.image_urls.length} image{sku.image_urls.length === 1 ? "" : "s"}</p>
         </div>

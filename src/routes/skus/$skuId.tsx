@@ -380,7 +380,9 @@ function ReportPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          const target = document.getElementById(`evidence-${f.id}`);
+                          const target = document.getElementById(`evidence-${f.id}`)
+                            ?? document.getElementById(`listing-field-${f.field}`)
+                            ?? (f.field.startsWith("bullet_") ? document.getElementById("listing-field-bullets") : null);
                           target?.scrollIntoView({ behavior: "smooth", block: "center" });
                           target?.animate([{ outline: "3px solid currentColor" }, { outline: "0 solid transparent" }], { duration: 1400 });
                           target?.focus({ preventScroll: true });

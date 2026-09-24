@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { rules, ruleById, ruleSections } from "@/data/rules";
 import { Input } from "@/components/ui/input";
@@ -27,8 +27,16 @@ const RuleDrawerContext = createContext<RuleDrawerValue | null>(null);
 export function RuleDrawerProvider({ children }: { children: ReactNode }) {
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const [query, setQuery] = useState("");
-  const openRule = useCallback((ruleId: string) => setDrawer({ mode: "rule", ruleId }), []);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const rememberFocus = () => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  };
+  const openRule = useCallback((ruleId: string) => {
+    rememberFocus();
+    setDrawer({ mode: "rule", ruleId });
+  }, []);
   const openAllRules = useCallback(() => {
+    rememberFocus();
     setQuery("");
     setDrawer({ mode: "all" });
   }, []);
@@ -42,7 +50,15 @@ export function RuleDrawerProvider({ children }: { children: ReactNode }) {
   return (
     <RuleDrawerContext.Provider value={value}>
       {children}
-      <Sheet open={drawer !== null} onOpenChange={(open) => !open && setDrawer(null)}>
+      <Sheet
+        open={drawer !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDrawer(null);
+            window.setTimeout(() => returnFocusRef.current?.focus({ preventScroll: true }), 0);
+          }
+        }}
+      >
         <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-lg">
           <SheetHeader className="sticky top-0 z-10 border-b border-border bg-background px-5 py-5 pr-14 text-left sm:px-6">
             <SheetTitle>{selected ? selected.id : "Content guidelines"}</SheetTitle>
