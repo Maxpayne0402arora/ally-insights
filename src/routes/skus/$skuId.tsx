@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info, X } from "lucide-react";
 import { RecommendedEdits, findingStatuses } from "@/components/RecommendedEdits";
 import { useGeneration } from "@/context/GenerationContext";
+import { useSkuReview } from "@/context/ReviewContext";
 import { StepIndicator } from "@/components/StepIndicator";
 import { RoleBadge, ScoreBadge } from "@/components/ScoreBadge";
 import { Button } from "@/components/ui/button";
@@ -14,29 +15,42 @@ import {
   hasIdentifier,
   severityCounts,
 } from "@/lib/rules";
+import { isAccepted } from "@/lib/review";
 import type { Finding, Sku } from "@/types/sku";
 import { cn } from "@/lib/utils";
 import { ListingContent } from "@/components/ListingContent";
 import { CompetitorDrawer } from "@/components/CompetitorDrawer";
 import { useRuleDrawer } from "@/context/RuleDrawerContext";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
+type Tab = "recommendations" | "findings" | "comparison";
+type Search = { tab?: Tab | undefined; fix?: number | undefined };
+
 export const Route = createFileRoute("/skus/$skuId")({
+  validateSearch: (s: Record<string, unknown>): Search => {
+    const tab = s.tab === "findings" || s.tab === "comparison" ? s.tab : undefined;
+    const raw = typeof s.fix === "number" ? s.fix : typeof s.fix === "string" && /^\d+$/.test(s.fix) ? Number(s.fix) : undefined;
+    return { ...(tab ? { tab } : {}), ...(tab === "findings" && raw ? { fix: raw } : {}) };
+  },
   head: () => ({
     meta: [
-      { title: "Listing audit · Ally" },
+      { title: "Review & approve listing edits · Ally" },
       {
         name: "description",
         content:
-          "Compare this listing against its competitor group and review guideline violations.",
+          "Review AI-recommended, guideline-checked edits for this listing, compare competitors and approve changes.",
       },
-      { property: "og:title", content: "Listing audit · Ally" },
+      { property: "og:title", content: "Review & approve listing edits · Ally" },
       {
         property: "og:description",
         content:
-          "Compare this listing against its competitor group and review guideline violations.",
+          "Review AI-recommended, guideline-checked edits for this listing, compare competitors and approve changes.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ReportPage,
@@ -56,8 +70,10 @@ const avg = (ns: number[]) =>
 
 function ReportPage() {
   const { skuId } = Route.useParams();
+  const search = Route.useSearch();
+  const tab: Tab = search.tab ?? "recommendations";
   const { skus, hasData, hydrated, isDismissed, dismissFinding, restoreFinding } = useSkuData();
-  const { cacheKeyFor, results } = useGeneration();
+  const { cacheKeyFor, jobs, generate, cancelled } = useGeneration();
   const navigate = useNavigate();
   const { openRule } = useRuleDrawer();
   const [peek, setPeek] = useState<{ sku: Sku; evidence?: string } | null>(null);
@@ -75,6 +91,18 @@ function ReportPage() {
   }, [hydrated, hasData, navigate]);
 
   const sku = skus.find((s) => s.sku_id === skuId);
+  const { stored, items } = useSkuReview(sku?.sku_id);
+  const key = sku ? cacheKeyFor(sku.sku_id) : "";
+  const job = key ? jobs[key] : undefined;
+
+  // Auto-generate after the user stays on this SKU for 2 seconds (never after a cancel in this session).
+  const skuRef = sku;
+  useEffect(() => {
+    if (!hydrated || !skuRef || stored || job || cancelled.has(key)) return;
+    const t = setTimeout(() => generate(skuRef), 2000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, key, !!stored, !!job, cancelled]);
 
   const findings = useMemo(
     () => (sku ? auditSku(sku, skus) : []),
@@ -119,13 +147,33 @@ function ReportPage() {
   }
 
   const score = complianceScore(findings);
-  const statuses = findingStatuses(results[cacheKeyFor(sku.sku_id)]);
+  const statuses = findingStatuses(stored, items);
   const currentGroup = skus.filter((item) => item.competitor_group === sku.competitor_group);
   const currentIndex = currentGroup.findIndex((item) => item.sku_id === sku.sku_id);
   const previous = currentIndex > 0 ? currentGroup[currentIndex - 1] : undefined;
   const next = currentIndex < currentGroup.length - 1 ? currentGroup[currentIndex + 1] : undefined;
-  const goToSku = (nextSkuId: string) => navigate({ to: "/skus/$skuId", params: { skuId: nextSkuId } });
+  const goToSku = (nextSkuId: string) =>
+    navigate({ to: "/skus/$skuId", params: { skuId: nextSkuId }, search: tab === "recommendations" ? {} : { tab } });
+  const setTab = (t: string) =>
+    navigate({ to: "/skus/$skuId", params: { skuId: sku.sku_id }, search: t === "recommendations" ? {} : { tab: t as Tab } });
+  const showFixes = (rank: number) =>
+    navigate({ to: "/skus/$skuId", params: { skuId: sku.sku_id }, search: { tab: "findings", fix: rank } });
   const columns: Sku[] = [sku, ...peers];
+
+  const highCount = findings.filter((f) => f.severity === "high").length;
+  const acceptedCount = items.filter((i) => isAccepted(i.decision?.state)).length;
+  const summaryLine = [
+    `${highCount} high-risk issue${highCount === 1 ? "" : "s"}`,
+    job?.status === "running"
+      ? "generating recommendations…"
+      : stored
+        ? `${items.length} edit${items.length === 1 ? "" : "s"} recommended · ${acceptedCount} accepted`
+        : "recommendations not generated yet",
+  ].join(" · ");
+
+  const fixItem = search.fix ? items.find((i) => i.edit.rank === search.fix) : undefined;
+  const fixIds = fixItem ? new Set(fixItem.edit.resolves_finding_ids) : null;
+  const shownFindings = fixIds ? findings.filter((f) => fixIds.has(f.id)) : findings;
 
   const metrics = columns.map((s) => {
     const f = auditSku(s, skus);
@@ -160,85 +208,53 @@ function ReportPage() {
       label: "Title length (chars)",
       cells: metrics.map((m) => ({
         value: `${m.titleLen}${m.titleLen >= 80 && m.titleLen <= 150 ? " · in range" : " · outside 80–150"}`,
-        tone:
-          m.titleLen >= 80 && m.titleLen <= 150
-            ? "good"
-            : m.titleLen > 200
-              ? "bad"
-              : "warn",
+        tone: m.titleLen >= 80 && m.titleLen <= 150 ? "good" : m.titleLen > 200 ? "bad" : "warn",
       })),
     },
     {
       label: "Size / count / flavor / color identifier",
-      cells: metrics.map((m) => ({
-        value: m.identifier ? "Yes" : "Missing",
-        tone: m.identifier ? "good" : "bad",
-      })),
+      cells: metrics.map((m) => ({ value: m.identifier ? "Yes" : "Missing", tone: m.identifier ? "good" : "bad" })),
     },
     {
       label: "Bullets (of 5)",
-      cells: metrics.map((m) => ({
-        value: `${m.bullets} of 5`,
-        tone: m.bullets === 5 ? "good" : m.bullets >= 3 ? "warn" : "bad",
-      })),
+      cells: metrics.map((m) => ({ value: `${m.bullets} of 5`, tone: m.bullets === 5 ? "good" : m.bullets >= 3 ? "warn" : "bad" })),
     },
     {
       label: "Avg bullet length (chars)",
       cells: metrics.map((m) => ({
         value: `${m.avgBullet}`,
-        tone:
-          m.avgBullet >= 90 && m.avgBullet <= 255
-            ? "good"
-            : m.avgBullet === best.avgBullet
-              ? "warn"
-              : "bad",
+        tone: m.avgBullet >= 90 && m.avgBullet <= 255 ? "good" : m.avgBullet === best.avgBullet ? "warn" : "bad",
       })),
     },
     {
       label: 'Bullets using "HEADER:" format',
       cells: metrics.map((m) => ({
         value: `${m.headers} of ${m.bullets || 0}`,
-        tone:
-          m.bullets > 0 && m.headers === m.bullets
-            ? "good"
-            : m.headers > 0
-              ? "warn"
-              : "bad",
+        tone: m.bullets > 0 && m.headers === m.bullets ? "good" : m.headers > 0 ? "warn" : "bad",
       })),
     },
     {
       label: "Description length (chars)",
       cells: metrics.map((m) => ({
         value: `${m.descLen}`,
-        tone:
-          m.descLen === 0
-            ? "bad"
-            : m.descLen > 2000
-              ? "warn"
-              : m.descLen >= best.descLen * 0.7
-                ? "good"
-                : "warn",
+        tone: m.descLen === 0 ? "bad" : m.descLen > 2000 ? "warn" : m.descLen >= best.descLen * 0.7 ? "good" : "warn",
       })),
     },
     {
       label: "Images (5–7 is best practice)",
-      cells: metrics.map((m) => ({
-        value: `${m.images}`,
-        tone: m.images >= 5 ? "good" : m.images === 0 ? "bad" : "warn",
-      })),
+      cells: metrics.map((m) => ({ value: `${m.images}`, tone: m.images >= 5 ? "good" : m.images === 0 ? "bad" : "warn" })),
     },
     {
       label: "Rule findings (high / medium / low)",
       cells: metrics.map((m) => ({
         value: `${m.counts.high} / ${m.counts.medium} / ${m.counts.low}`,
-        tone:
-          m.counts.high > 0 ? "bad" : m.counts.medium > 0 ? "warn" : "good",
+        tone: m.counts.high > 0 ? "bad" : m.counts.medium > 0 ? "warn" : "good",
       })),
     },
   ];
 
   const byField = new Map<string, Finding[]>();
-  findings.forEach((f) => {
+  shownFindings.forEach((f) => {
     const list = byField.get(f.field) ?? [];
     list.push(f);
     byField.set(f.field, list);
@@ -251,115 +267,77 @@ function ReportPage() {
   };
 
   return (
+    <TooltipProvider delayDuration={250}>
     <div>
       <StepIndicator current={3} />
 
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink asChild><Link to="/">Load data</Link></BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbLink asChild><Link to="/skus">SKUs</Link></BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbPage>{sku.brand}</BreadcrumbPage></BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <Tabs value={tab} onValueChange={setTab}>
+      <div className="sticky top-16 z-30 -mx-4 border-b border-border bg-background/95 px-4 pb-3 pt-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem><BreadcrumbLink asChild><Link to="/">Load data</Link></BreadcrumbLink></BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem><BreadcrumbLink asChild><Link to="/skus">SKUs</Link></BreadcrumbLink></BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem><BreadcrumbPage>{sku.brand}</BreadcrumbPage></BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
 
-      <div className="mt-5 flex flex-col gap-2 border-y border-border py-4 sm:flex-row sm:items-center">
-        <Select value={sku.sku_id} onValueChange={goToSku}>
-          <SelectTrigger className="sm:max-w-sm" aria-label="Switch SKU"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {groupedSkus.map(([group, list]) => (
-              <SelectGroup key={group}>
-                <SelectLabel>{group}</SelectLabel>
-                {list.map((item) => <SelectItem key={item.sku_id} value={item.sku_id}>{item.brand} · {item.sku_id}</SelectItem>)}
-              </SelectGroup>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="flex gap-2 sm:ml-auto">
-          <Button variant="outline" size="icon" className="min-h-11 min-w-11" disabled={!previous} onClick={() => previous && goToSku(previous.sku_id)} aria-label="Previous SKU in group"><ChevronLeft /></Button>
-          <Button variant="outline" size="icon" className="min-h-11 min-w-11" disabled={!next} onClick={() => next && goToSku(next.sku_id)} aria-label="Next SKU in group"><ChevronRight /></Button>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
-        <div className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">
-              {sku.brand}
-            </h1>
-            <RoleBadge isClient={sku.is_client} />
-            <span className="font-mono text-xs text-muted-foreground">
-              {sku.sku_id}
-            </span>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-semibold tracking-tight text-foreground">{sku.brand}</h1>
+              <RoleBadge isClient={sku.is_client} />
+              <span className="font-mono text-xs text-muted-foreground">{sku.sku_id}</span>
+              <ScoreBadge score={score} />
+            </div>
+            <p className="mt-0.5 truncate text-sm text-foreground" title={sku.title}>{sku.title}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{summaryLine}</p>
           </div>
-          <p className="mt-2 text-foreground">{sku.title}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{sku.category}</p>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <Select value={sku.sku_id} onValueChange={goToSku}>
+              <SelectTrigger className="min-w-0 flex-1 sm:w-64" aria-label="Switch SKU"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {groupedSkus.map(([group, list]) => (
+                  <SelectGroup key={group}>
+                    <SelectLabel>{group}</SelectLabel>
+                    {list.map((item) => <SelectItem key={item.sku_id} value={item.sku_id}>{item.brand} · {item.sku_id}</SelectItem>)}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="icon" disabled={!previous} onClick={() => previous && goToSku(previous.sku_id)} aria-label="Previous SKU in group"><ChevronLeft /></Button>
+            <Button variant="outline" size="icon" disabled={!next} onClick={() => next && goToSku(next.sku_id)} aria-label="Next SKU in group"><ChevronRight /></Button>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Compliance score
-          </p>
-          <ScoreBadge score={score} className="mt-1 px-3 py-1.5 text-base" />
-        </div>
+
+        <TabsList className="mt-3 w-full justify-start overflow-x-auto sm:w-auto">
+          <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
+          <TabsTrigger value="findings">Findings ({findings.length})</TabsTrigger>
+          <TabsTrigger value="comparison">Comparison</TabsTrigger>
+        </TabsList>
       </div>
 
-      {peers.length === 0 ? (
-        <div className="mt-8 rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-          No competitors in this group. Showing a guidelines-only audit.
-        </div>
-      ) : (
-        <div className="mt-8 max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-border bg-card">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary text-left">
-                <th className="px-4 py-3 font-medium text-muted-foreground">
-                  Metric
-                </th>
-                {columns.map((c, i) => (
-                  <th key={c.sku_id} className={cn("px-4 py-3 font-medium", i === 0 ? "bg-primary/10 text-primary" : "text-foreground")}> 
-                    {i === 0 ? (
-                      <><span>{c.brand}</span><span className="block font-mono text-xs font-normal opacity-70">{c.sku_id}</span></>
-                    ) : (
-                      <button type="button" onClick={() => setPeekSku(c)} className="min-h-11 text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`View ${c.brand} listing`}>
-                        {c.brand}<span className="block font-mono text-xs font-normal opacity-70">{c.sku_id}</span>
-                      </button>
-                    )}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.label} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 text-muted-foreground">{row.label}</td>
-                  {row.cells.map((cell, i) => (
-                    <td
-                      key={`${row.label}-${columns[i]?.sku_id}`}
-                      className={cn("px-4 py-3", i === 0 && "bg-primary/5")}
-                    >
-                      <span
-                        className={cn(
-                          "inline-block rounded-md px-2 py-1 text-xs font-medium",
-                          toneCls[cell.tone],
-                        )}
-                      >
-                        {cell.value}
-                      </span>
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <TabsContent value="recommendations" className="mt-6">
+        <RecommendedEdits
+          sku={sku}
+          allSkus={skus}
+          findings={findings}
+          items={items}
+          isDismissed={(id) => isDismissed(sku.sku_id, id)}
+          onDismiss={(id) => dismissFinding(sku.sku_id, id)}
+          onOpenRule={openRule}
+          onPeek={(s, evidence) => setPeek({ sku: s, evidence })}
+          onShowFixes={showFixes}
+        />
+      </TabsContent>
 
-      <section className="mt-12 border-y border-border py-8">
+      <TabsContent value="findings" className="mt-6">
+      <section className="border-b border-border pb-8">
         <ListingContent sku={sku} allSkus={skus} />
       </section>
 
-      <section className="mt-12">
+      <section className="mt-10">
         <h2 className="text-lg font-semibold text-foreground">
           Findings ({findings.length})
         </h2>
@@ -367,8 +345,17 @@ function ReportPage() {
           <Info className="h-4 w-4" /> Images are checked by count only; image
           content isn't analysed.
         </p>
+        {fixItem && (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary">
+            Showing {shownFindings.length} finding{shownFindings.length === 1 ? "" : "s"} fixed by edit #{fixItem.edit.rank}
+            <span aria-hidden>·</span>
+            <button type="button" onClick={() => setTab("findings")} className="inline-flex items-center gap-1 font-medium hover:underline">
+              Clear <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
-        {findings.length === 0 ? (
+        {shownFindings.length === 0 ? (
           <div className="mt-4 rounded-lg border border-success/30 bg-success-soft p-6 text-sm font-medium text-success">
             No guideline issues found
           </div>
@@ -439,17 +426,65 @@ function ReportPage() {
           </div>
         )}
       </section>
+      </TabsContent>
 
-      <RecommendedEdits
-        sku={sku}
-        allSkus={skus}
-        findings={findings}
-        isDismissed={(id) => isDismissed(sku.sku_id, id)}
-        onDismiss={(id) => dismissFinding(sku.sku_id, id)}
-        onOpenRule={openRule}
-        onPeek={(s, evidence) => setPeek({ sku: s, evidence })}
-      />
+      <TabsContent value="comparison" className="mt-6">
+      {peers.length === 0 ? (
+        <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+          No competitors in this group. Showing a guidelines-only audit.
+        </div>
+      ) : (
+        <div className="max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-border bg-card">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr className="border-b border-border bg-secondary text-left">
+                <th className="px-4 py-3 font-medium text-muted-foreground">
+                  Metric
+                </th>
+                {columns.map((c, i) => (
+                  <th key={c.sku_id} className={cn("px-4 py-3 font-medium", i === 0 ? "bg-primary/10 text-primary" : "text-foreground")}> 
+                    {i === 0 ? (
+                      <><span>{c.brand}</span><span className="block font-mono text-xs font-normal opacity-70">{c.sku_id}</span></>
+                    ) : (
+                      <button type="button" onClick={() => setPeekSku(c)} className="min-h-11 text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`View ${c.brand} listing`}>
+                        {c.brand}<span className="block font-mono text-xs font-normal opacity-70">{c.sku_id}</span>
+                      </button>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.label} className="border-b border-border last:border-0">
+                  <td className="px-4 py-3 text-muted-foreground">{row.label}</td>
+                  {row.cells.map((cell, i) => (
+                    <td
+                      key={`${row.label}-${columns[i]?.sku_id}`}
+                      className={cn("px-4 py-3", i === 0 && "bg-primary/5")}
+                    >
+                      <span
+                        className={cn(
+                          "inline-block rounded-md px-2 py-1 text-xs font-medium",
+                          toneCls[cell.tone],
+                        )}
+                      >
+                        {cell.value}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      </TabsContent>
+      </Tabs>
+
       <CompetitorDrawer sku={peek?.sku ?? null} evidence={peek?.evidence} allSkus={skus} onClose={() => setPeek(null)} />
     </div>
+    </TooltipProvider>
   );
 }
