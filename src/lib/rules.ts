@@ -61,6 +61,36 @@ export const hasIdentifier = (title: string) => IDENTIFIER_RE.test(title);
 export const HEADER_RE = /^\s*[A-Z0-9][A-Za-z0-9 '&/,\-\u2013\u2014()]{0,58}:/;
 export const hasBulletHeader = (b: string) => HEADER_RE.test(b);
 
+export type BulletClarity = "Clear" | "Feature-only" | "Needs work";
+
+/**
+ * Heuristic verb check: auxiliaries plus common verb endings (-s, -es, -ed, -ing).
+ * Intentionally simple — clarity labels are informational, not rule findings.
+ */
+const VERB_RE = /^(is|are|was|were|be|been|being|has|have|had|do|does|did|will|would|can|could|may|might|must|shall|should|[a-z']+(s|es|ed|ing))$/i;
+
+export const BULLET_CLARITY_TIP =
+  "Clear = valid HEADER:, 40–255 characters, and 5–35 words after the header. Feature-only = under 40 characters or no verb after the header. Everything else = Needs work.";
+
+/** Code-computed clarity label for one bullet (no AI). */
+export function bulletClarity(bullet: string): { label: BulletClarity; reason: string } {
+  const len = bullet.length;
+  const header = bullet.match(HEADER_RE);
+  const body = (header ? bullet.slice(header[0].length) : bullet).trim();
+  const words = body ? body.split(/\s+/) : [];
+  const hasVerb = words.some((w) => VERB_RE.test(w.replace(/[^a-z'-]/gi, "")));
+  if (len < 40) return { label: "Feature-only", reason: `Under 40 characters (${len}).` };
+  if (!hasVerb) return { label: "Feature-only", reason: "No verb after the header — reads as a feature fragment." };
+  if (header && len <= 255 && words.length >= 5 && words.length <= 35)
+    return { label: "Clear", reason: `Valid HEADER:, ${len} characters, ${words.length} words after the header.` };
+  const why: string[] = [];
+  if (!header) why.push("no valid HEADER:");
+  if (len > 255) why.push(`over 255 characters (${len})`);
+  if (words.length < 5) why.push(`only ${words.length} words after the header`);
+  if (words.length > 35) why.push(`${words.length} words after the header (over 35)`);
+  return { label: "Needs work", reason: why.join("; ") + "." };
+}
+
 const CAPS_RE = /(?<![A-Za-z0-9])[A-Z][A-Z'-]{3,}(?![A-Za-z0-9])/g;
 
 /** ALL-CAPS words (4+ letters) as ranges, offset into the original text. */

@@ -12,6 +12,8 @@ import {
   auditSku,
   complianceScore,
   hasBulletHeader,
+  bulletClarity,
+  BULLET_CLARITY_TIP,
   hasIdentifier,
   severityCounts,
 } from "@/lib/rules";
@@ -22,7 +24,7 @@ import { ListingContent } from "@/components/ListingContent";
 import { CompetitorDrawer } from "@/components/CompetitorDrawer";
 import { useRuleDrawer } from "@/context/RuleDrawerContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
@@ -188,6 +190,7 @@ function ReportPage() {
       bullets: s.bullets.length,
       avgBullet: avg(bulletLens),
       headers: s.bullets.filter(hasBulletHeader).length,
+      clear: s.bullets.filter((b) => bulletClarity(b).label === "Clear").length,
       descLen: s.description.length,
       images: s.image_urls.length,
       counts,
@@ -198,10 +201,12 @@ function ReportPage() {
     avgBullet: Math.max(...metrics.map((m) => m.avgBullet)),
     headers: Math.max(...metrics.map((m) => m.headers)),
     descLen: Math.max(...metrics.map((m) => m.descLen)),
+    clear: Math.max(...metrics.map((m) => m.clear)),
   };
 
   type Row = {
     label: string;
+    tip?: string;
     cells: { value: string; tone: Tone }[];
   };
 
@@ -233,6 +238,14 @@ function ReportPage() {
       cells: metrics.map((m) => ({
         value: `${m.headers} of ${m.bullets || 0}`,
         tone: m.bullets > 0 && m.headers === m.bullets ? "good" : m.headers > 0 ? "warn" : "bad",
+      })),
+    },
+    {
+      label: "Bullet clarity",
+      tip: BULLET_CLARITY_TIP,
+      cells: metrics.map((m) => ({
+        value: `${m.clear}/${m.bullets || 0} clear`,
+        tone: m.bullets === 0 ? "neutral" : m.clear === best.clear ? "good" : m.clear >= best.clear - 1 ? "warn" : "bad",
       })),
     },
     {
@@ -465,14 +478,20 @@ function ReportPage() {
                       key={`${row.label}-${columns[i]?.sku_id}`}
                       className={cn("px-4 py-3", i === 0 && "bg-primary/5")}
                     >
-                      <span
-                        className={cn(
-                          "inline-block rounded-md px-2 py-1 text-xs font-medium",
-                          toneCls[cell.tone],
-                        )}
-                      >
-                        {cell.value}
-                      </span>
+                      {row.tip ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span tabIndex={0} className={cn("inline-block rounded-md px-2 py-1 text-xs font-medium", toneCls[cell.tone])}>
+                              {cell.value}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">{row.tip}</TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className={cn("inline-block rounded-md px-2 py-1 text-xs font-medium", toneCls[cell.tone])}>
+                          {cell.value}
+                        </span>
+                      )}
                     </td>
                   ))}
                 </tr>
