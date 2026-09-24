@@ -1,3 +1,4 @@
+import { ReviewProvider } from "@/context/ReviewContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -132,6 +133,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <SkuDataProvider>
         <GenerationProvider>
+        <ReviewProvider>
         <RuleDrawerProvider>
           <div className="min-h-screen overflow-x-clip bg-background">
             <TopNav />
@@ -142,6 +144,7 @@ function RootComponent() {
           </div>
           <Toaster position="top-right" />
         </RuleDrawerProvider>
+        </ReviewProvider>
         </GenerationProvider>
       </SkuDataProvider>
     </QueryClientProvider>

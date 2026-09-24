@@ -4,6 +4,7 @@ import { ChevronRight, Search } from "lucide-react";
 import { StepIndicator } from "@/components/StepIndicator";
 import { RoleBadge, ScoreBadge } from "@/components/ScoreBadge";
 import { useSkuData } from "@/context/SkuDataContext";
+import { useReviewStatuses } from "@/context/ReviewContext";
 import { auditSku, complianceScore } from "@/lib/rules";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ function SelectSkuPage() {
   const [query, setQuery] = useState("");
   const [clientsOnly, setClientsOnly] = useState(false);
   const [sort, setSort] = useState<"score" | "brand">("score");
+  const { statuses } = useReviewStatuses(skus);
 
   useEffect(() => {
     if (hydrated && !hasData) {
@@ -167,6 +169,7 @@ function SelectSkuPage() {
                           {s.sku_id}
                         </span>
                         <RoleBadge isClient={s.is_client} />
+                        <ReviewStatusChip status={statuses.get(s.sku_id) ?? "Not reviewed"} />
                       </div>
                       <p className="mt-1 truncate text-sm text-muted-foreground">
                         {truncate(s.title)}
@@ -188,4 +191,15 @@ function SelectSkuPage() {
       </div>
     </div>
   );
+}
+
+function ReviewStatusChip({ status }: { status: string }) {
+  const cls = status === "Reviewed"
+    ? "bg-success-soft text-success"
+    : status.startsWith("In review")
+      ? "bg-warning-soft text-warning"
+      : status === "Recommendations ready"
+        ? "bg-primary/10 text-primary"
+        : "bg-secondary text-muted-foreground";
+  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls}`}>{status}</span>;
 }
