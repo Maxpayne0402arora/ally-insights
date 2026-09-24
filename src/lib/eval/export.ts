@@ -1,6 +1,6 @@
 import Papa from "papaparse";
 import { computeMetrics, humanSummary, sampleEdits, type Metric } from "./metrics";
-import type { EvalRun, SkuRecord } from "./types";
+import { isRulesOnlyRow, type EvalRun, type SkuRecord } from "./types";
 
 export function download(name: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
