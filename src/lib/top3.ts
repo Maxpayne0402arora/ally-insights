@@ -175,7 +175,7 @@ export function normalize(raw: unknown): { result: AiResult; failures: GuardFail
   });
 
   const edits: Edit[] = [];
-  (Array.isArray(r.top_edits) ? r.top_edits : []).forEach((e, i) => {
+  (Array.isArray(r.top_edits) ? r.top_edits : []).forEach((e: unknown, i: number) => {
     const eo = obj(e);
     const rank = typeof eo.rank === "number" ? eo.rank : i + 1;
     EDIT_KEYS.forEach((k) => {
@@ -193,13 +193,13 @@ export function normalize(raw: unknown): { result: AiResult; failures: GuardFail
       current: fieldText(field, eo.current),
       proposed_full: fieldText(field, eo.proposed_full),
       proposed_compliance_only: fieldText(field, eo.proposed_compliance_only),
-      changes: (Array.isArray(eo.changes) ? eo.changes : []).map((c) => {
+      changes: (Array.isArray(eo.changes) ? eo.changes : []).map((c: unknown) => {
         const co = obj(c);
         return {
           type: co.type === "competitive" ? "competitive" : "compliance",
           what: str(co.what),
           rule_ids: strList(co.rule_ids),
-          competitor_refs: (Array.isArray(co.competitor_refs) ? co.competitor_refs : []).map((ref) => {
+          competitor_refs: (Array.isArray(co.competitor_refs) ? co.competitor_refs : []).map((ref: unknown) => {
             const ro = obj(ref);
             return { sku_id: str(ro.sku_id), brand: str(ro.brand), evidence: typeof ro.evidence === "string" ? ro.evidence.trim() : "" };
           }),
@@ -222,8 +222,8 @@ export function normalize(raw: unknown): { result: AiResult; failures: GuardFail
       open_issues: pairs(r.open_issues),
       suspected_false_positives: pairs(r.suspected_false_positives),
       action_items: (Array.isArray(r.action_items) ? r.action_items : [])
-        .map((a) => ({ what: str(obj(a).what), rule_ids: strList(obj(a).rule_ids) }))
-        .filter((a) => a.what),
+        .map((a: unknown) => ({ what: str(obj(a).what), rule_ids: strList(obj(a).rule_ids) }))
+        .filter((a: { what: string }) => a.what),
     },
     failures,
   };
@@ -381,7 +381,7 @@ export function runGuardrail(
   const high = new Set(built.findings.filter((f) => f.severity === "high").map((f) => f.id));
   const fixesHigh = (e: Edit) => e.resolves_finding_ids.some((id) => high.has(id));
   const sorted = [...result.top_edits].sort((a, b) => a.rank - b.rank);
-  sorted.forEach((e, i) => {
+  sorted.forEach((e: unknown, i: number) => {
     if (!fixesHigh(e)) return;
     const above = sorted.slice(0, i).find((o) => o.resolves_finding_ids.length === 0);
     if (above) failures.push({ edit_rank: e.rank, check: "ranking", detail: `Edit #${e.rank} fixes a high-severity finding but ranks below edit #${above.rank}, which fixes none.` });
