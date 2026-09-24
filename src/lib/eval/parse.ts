@@ -1,6 +1,6 @@
 import Papa from "papaparse";
 import { parseCsv } from "@/lib/csv";
-import { AI_ASSERTIONS, RULE_ASSERTIONS, type Assertion, type EvalRow, type EvalSet } from "./types";
+import { AI_ASSERTIONS, RULE_ASSERTIONS, isRulesOnlyRow, type Assertion, type EvalRow, type EvalSet } from "./types";
 
 const TYPES = new Set<string>([...RULE_ASSERTIONS, ...AI_ASSERTIONS]);
 const FIELDS = new Set(["title", "bullets", "description", "any"]);
@@ -21,11 +21,20 @@ function validate(a: unknown): Assertion {
     if (!Number.isFinite(n)) throw new Error(`${t} needs a numeric value`);
     return n;
   };
+  // "rule_ids" (array) or "rule_id" (string); empty = any rule.
+  const ruleIds = () => {
+    const v = o["rule_ids"] ?? o["rule_id"];
+    if (v == null || v === "") return [];
+    if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+    if (typeof v === "string") return [v.trim()];
+    throw new Error(`rule_ids in ${t} must be an array of strings`);
+  };
   switch (t) {
     case "finding_flagged":
     case "finding_not_flagged":
-      // Empty rule_id means "any rule".
-      return { type: t, rule_id: str("rule_id"), text: str("text") };
+      return { type: t, rule_ids: ruleIds(), text: str("text") };
+    case "no_findings":
+      return { type: t, rule_ids: ruleIds() };
     case "not_contains":
       return { type: t, field: field(), value: str("value") };
     case "contains_placeholder":
@@ -75,6 +84,8 @@ export function parseEvalCsv(text: string, fileName: string): { set: EvalSet | n
 export function setSummary(set: EvalSet) {
   const clients = set.rows.filter((r) => r.sku.is_client).length;
   const scenarios = set.rows.filter((r) => r["scenario"]).length;
-  const assertions = set.rows.reduce((n, r) => n + r.assertions.length + (r.sku.is_client ? 2 : 0), 0);
-  return `${set.rows.length} rows · ${clients} client SKUs · ${scenarios} scenarios · ${assertions} assertions`;
+  const rulesOnly = set.rows.filter(isRulesOnlyRow).length;
+  const aiRows = set.rows.filter((r) => r.sku.is_client && !isRulesOnlyRow(r)).length;
+  const assertions = set.rows.reduce((n, r) => n + r.assertions.length + (r.sku.is_client && !isRulesOnlyRow(r) ? 2 : 0), 0);
+  return `${set.rows.length} rows · ${aiRows} AI rows · ${rulesOnly} rules-only rows · ${clients} client SKUs · ${scenarios} scenarios · ${assertions} assertions`;
 }

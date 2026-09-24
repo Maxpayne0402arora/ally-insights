@@ -58,7 +58,7 @@ export const IDENTIFIER_RE =
 export const hasIdentifier = (title: string) => IDENTIFIER_RE.test(title);
 
 /** A leading capitalised phrase followed by a colon. " - " / " – " separators are NOT headers. */
-export const HEADER_RE = /^\s*[A-Z0-9][A-Za-z0-9 '&/,]{0,58}:/;
+export const HEADER_RE = /^\s*[A-Z0-9][A-Za-z0-9 '&/,\-\u2013\u2014()]{0,58}:/;
 export const hasBulletHeader = (b: string) => HEADER_RE.test(b);
 
 const CAPS_RE = /(?<![A-Za-z0-9])[A-Z][A-Z'-]{3,}(?![A-Za-z0-9])/g;
@@ -140,8 +140,8 @@ const CLAIM_TERMS: Term[] = [
   "cures", "guaranteed", "incredible", "amazing deal",
 ];
 const REVIEW_TERMS: Term[] = [
-  "5-star", "5 star", "rated", "#1 rated", "rated #1", "customers love", "dogs love", "reviews",
-  "top rated", "highly rated",
+  "5-star rated", "customers love it", "#1 rated", "rated #1", "top rated", "highly rated",
+  "five star", "dogs love", "cats love", "loved by",
 ];
 /** REVIEW_TERMS whose findings are marked match_type "interpretation". */
 const REVIEW_INTERP = new Set(["top rated", "highly rated"]);

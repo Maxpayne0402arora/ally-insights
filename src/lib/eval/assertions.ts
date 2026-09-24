@@ -1,7 +1,7 @@
 import { auditSku, maskPlaceholders } from "@/lib/rules";
 import { asList, joined, type AiResult, type Edit } from "@/lib/top3";
 import type { Sku } from "@/types/sku";
-import { isRuleAssertion, type Assertion, type AssertionResult, type EvalField, type EvalRow, type SkuRecord } from "./types";
+import { isRuleAssertion, isRulesOnlyRow, type Assertion, type AssertionResult, type EvalField, type EvalRow, type SkuRecord } from "./types";
 
 export function assertionLabel(a: Assertion): string {
   const { type, ...rest } = a as Assertion & Record<string, unknown>;
@@ -15,7 +15,7 @@ const proposed = (e: Edit) => joined(e.proposed_full);
 
 export function assertionsFor(row: EvalRow): Assertion[] {
   const out = [...row.assertions];
-  if (row.sku.is_client) {
+  if (row.sku.is_client && !isRulesOnlyRow(row)) {
     for (const t of ["guardrail_pass", "brand_preserved"] as const) {
       if (!out.some((a) => a.type === t)) out.push({ type: t });
     }
@@ -32,14 +32,22 @@ export const textMatches = (evidence: string, text: string) => {
 export function evalRuleAssertion(a: Assertion, sku: Sku, allSkus: Sku[]): AssertionResult {
   const findings = auditSku(sku, allSkus);
   const label = assertionLabel(a);
-  if (a.type !== "finding_flagged" && a.type !== "finding_not_flagged") throw new Error("not a rule assertion");
+  if (!isRuleAssertion(a)) throw new Error("not a rule assertion");
+  const ids = (a as { rule_ids?: string[] }).rule_ids ?? [];
   // Filter by rule first (empty = any rule), then by text.
-  const byRule = findings.filter((f) => !a.rule_id || f.rule_id === a.rule_id);
+  const byRule = findings.filter((f) => !ids.length || ids.includes(f.rule_id));
+  const ruleName = ids.length ? ids.join("/") : "matching";
+  if (a.type === "no_findings") {
+    return byRule.length
+      ? { label, type: a.type, kind: "rules", pass: false, reason: `${byRule.length} finding(s): ${byRule.slice(0, 3).map((f) => `[${f.rule_id}] "${f.evidence}"`).join("; ")}` }
+      : { label, type: a.type, kind: "rules", pass: true, reason: "No findings." };
+  }
+  if (a.type !== "finding_flagged" && a.type !== "finding_not_flagged") throw new Error("not a rule assertion");
   const matches = byRule.filter((f) => !a.text || textMatches(f.evidence, a.text));
   if (a.type === "finding_flagged") {
     return matches.length
       ? { label, type: a.type, kind: "rules", pass: true, reason: `Flagged: "${matches[0]!.evidence}"` }
-      : { label, type: a.type, kind: "rules", pass: false, reason: `No ${a.rule_id || "matching"} finding${a.text ? ` with evidence matching "${a.text}"` : ""}.${byRule.length ? ` Closest: ${byRule.slice(0, 3).map((f) => `[${f.rule_id}] "${f.evidence}"`).join("; ")}` : ""}` };
+      : { label, type: a.type, kind: "rules", pass: false, reason: `No ${ruleName} finding${a.text ? ` with evidence matching "${a.text}"` : ""}.${byRule.length ? ` Closest: ${byRule.slice(0, 3).map((f) => `[${f.rule_id}] "${f.evidence}"`).join("; ")}` : ""}` };
   }
   return matches.length
     ? { label, type: a.type, kind: "rules", pass: false, reason: `Wrongly flagged: [${matches[0]!.rule_id}] "${matches[0]!.evidence}"` }

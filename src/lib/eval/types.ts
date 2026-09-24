@@ -4,8 +4,9 @@ import type { AiResult, GuardFailure, PayloadFinding } from "@/lib/top3";
 export type EvalField = "title" | "bullets" | "description" | "any";
 
 export type Assertion =
-  | { type: "finding_flagged"; rule_id?: string; text?: string }
-  | { type: "finding_not_flagged"; rule_id?: string; text?: string }
+  | { type: "finding_flagged"; rule_ids: string[]; text?: string }
+  | { type: "finding_not_flagged"; rule_ids: string[]; text?: string }
+  | { type: "no_findings"; rule_ids: string[] }
   | { type: "not_contains"; field: EvalField; value: string }
   | { type: "contains_placeholder"; field: EvalField }
   | { type: "edit_field_present"; field: EvalField }
@@ -18,12 +19,16 @@ export type Assertion =
   | { type: "guardrail_pass" }
   | { type: "brand_preserved" };
 
-export const RULE_ASSERTIONS = ["finding_flagged", "finding_not_flagged"] as const;
+export const RULE_ASSERTIONS = ["finding_flagged", "finding_not_flagged", "no_findings"] as const;
 export const AI_ASSERTIONS = [
   "not_contains", "contains_placeholder", "edit_field_present", "max_edits", "min_edits", "max_length",
   "no_competitive_changes", "no_new_claims", "suspected_fp", "guardrail_pass", "brand_preserved",
 ] as const;
 export const isRuleAssertion = (a: Assertion) => (RULE_ASSERTIONS as readonly string[]).includes(a.type);
+
+/** A row whose own expectations are all rules assertions never calls the AI. */
+export const isRulesOnlyRow = (r: { assertions: Assertion[]; assertionError?: string }) =>
+  !r.assertionError && r.assertions.length > 0 && r.assertions.every(isRuleAssertion);
 
 export type EvalRow = {
   sku: Sku;

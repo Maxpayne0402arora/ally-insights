@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PROMPTS, CURRENT_PROMPT_VERSION } from "@/prompts";
 import { parseEvalCsv, setSummary } from "@/lib/eval/parse";
+import { isRulesOnlyRow } from "@/lib/eval/types";
 import { runSkuPipeline, seededShuffle } from "@/lib/eval/pipeline";
 import { evaluateRow } from "@/lib/eval/assertions";
 import { computeMetrics, type RowOutcome } from "@/lib/eval/metrics";
@@ -37,8 +38,8 @@ type Task = { key: string; row: EvalRow; repeatOf?: string };
 
 /** Rebuild the full task list for a run from its stored settings. */
 function buildTasks(run: EvalRun): Task[] {
-  const clients = run.set.rows.filter((r) => r.sku.is_client);
-  const aiRows = run.mode === "scenarios" ? run.set.rows.filter((r) => r.scenario) : run.mode === "firstN" ? clients.slice(0, run.firstN ?? 10) : clients;
+  const clients = run.set.rows.filter((r) => r.sku.is_client && !isRulesOnlyRow(r));
+  const aiRows = run.mode === "scenarios" ? run.set.rows.filter((r) => r.scenario && !isRulesOnlyRow(r)) : run.mode === "firstN" ? clients.slice(0, run.firstN ?? 10) : clients;
   const tasks: Task[] = aiRows.map((row) => ({ key: row.sku.sku_id, row }));
   if (run.consistency) {
     seededShuffle(clients, run.sampleSeed).slice(0, 3).forEach((row) => {
@@ -177,8 +178,8 @@ function EvalPage() {
 
   const start = async () => {
     if (!set) return;
-    const clients = set.rows.filter((r) => r.sku.is_client);
-    const aiRows = mode === "scenarios" ? set.rows.filter((r) => r.scenario) : mode === "firstN" ? clients.slice(0, firstN) : clients;
+    const clients = set.rows.filter((r) => r.sku.is_client && !isRulesOnlyRow(r));
+    const aiRows = mode === "scenarios" ? set.rows.filter((r) => r.scenario && !isRulesOnlyRow(r)) : mode === "firstN" ? clients.slice(0, firstN) : clients;
     const id = crypto.randomUUID();
     const now = new Date();
     const newRun: EvalRun = {
