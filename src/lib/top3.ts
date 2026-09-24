@@ -151,7 +151,7 @@ const fixConfirm = (s: string) => s.replace(/\[\s*confirm\s*:\s*([^\]]*?)\s*\]/g
 const str = (x: unknown) => (typeof x === "string" ? fixConfirm(x.trim()) : "");
 const strList = (x: unknown) => (Array.isArray(x) ? x.map(str).filter(Boolean) : []);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Loose = { [key: string]: any };
+type Loose = any;
 const obj = (x: unknown): Loose => (x && typeof x === "object" && !Array.isArray(x) ? (x as Loose) : {});
 
 function fieldText(field: EditField, x: unknown): FieldText {
