@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as GuidelinesRouteImport } from './routes/guidelines'
+import { Route as SkusIndexRouteImport } from './routes/skus/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuidelinesRoute = GuidelinesRouteImport.update({
+  id: '/guidelines',
+  path: '/guidelines',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SkusIndexRoute = SkusIndexRouteImport.update({
+  id: '/skus/',
+  path: '/skus/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/guidelines': typeof GuidelinesRoute
+  '/skus/': typeof SkusIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/guidelines': typeof GuidelinesRoute
+  '/skus': typeof SkusIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/guidelines': typeof GuidelinesRoute
+  '/skus/': typeof SkusIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/guidelines' | '/skus/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/guidelines' | '/skus'
+  id: '__root__' | '/' | '/guidelines' | '/skus/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GuidelinesRoute: typeof GuidelinesRoute
+  SkusIndexRoute: typeof SkusIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guidelines': {
+      id: '/guidelines'
+      path: '/guidelines'
+      fullPath: '/guidelines'
+      preLoaderRoute: typeof GuidelinesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/skus/': {
+      id: '/skus/'
+      path: '/skus'
+      fullPath: '/skus/'
+      preLoaderRoute: typeof SkusIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GuidelinesRoute: GuidelinesRoute,
+  SkusIndexRoute: SkusIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
