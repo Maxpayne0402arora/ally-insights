@@ -141,7 +141,10 @@ const CLAIM_TERMS: Term[] = [
 ];
 const REVIEW_TERMS: Term[] = [
   "5-star", "5 star", "rated", "#1 rated", "rated #1", "customers love", "dogs love", "reviews",
+  "top rated", "highly rated",
 ];
+/** REVIEW_TERMS whose findings are marked match_type "interpretation". */
+const REVIEW_INTERP = new Set(["top rated", "highly rated"]);
 
 function restrictedChecks(field: string, text: string, sku: Sku, allSkus: Sku[]): Finding[] {
   const otherBrands = Array.from(
@@ -161,7 +164,9 @@ function restrictedChecks(field: string, text: string, sku: Sku, allSkus: Sku[])
     ...fromMatches(field, "AMZ-RESTRICT-04", "high", findRanges(text, CLAIM_TERMS),
       (t) => `Unverifiable superlative or absolute claim (${quoteList(t)}).`),
     ...fromMatches(field, "AMZ-RESTRICT-05", "high", findRanges(text, REVIEW_TERMS),
-      (t) => `Reviews, ratings or testimonials (${quoteList(t)}) must not be referenced.`),
+      (t) => `Reviews, ratings or testimonials (${quoteList(t)}) must not be referenced.`).map((f) =>
+      f.evidence.split(" · ").some((w) => REVIEW_INTERP.has(w.toLowerCase().replace(/[\s-]+/g, " ")))
+        ? { ...f, match_type: "interpretation" as const } : f),
     ...fromMatches(field, "AMZ-RESTRICT-06", "high", findRanges(text, otherBrands),
       (t) => `Mentions another brand in the dataset (${quoteList(t)}).`),
   ];
@@ -173,7 +178,7 @@ function restrictedChecks(field: string, text: string, sku: Sku, allSkus: Sku[])
 
 const TITLE_PROMO: Term[] = ["best", "#1", "cheap", "sale", "free shipping", "guaranteed", "great gift", /!{2,}/];
 
-export function checkTitle(title: string, sku: Sku, allSkus: Sku[]): Finding[] {
+export function checkTitle(title: string, sku: Sku, allSkus: Sku[], placeholderIdentifier = false): Finding[] {
   const out: Finding[] = [];
   const field = "title";
   const t = title ?? "";
@@ -205,7 +210,7 @@ export function checkTitle(title: string, sku: Sku, allSkus: Sku[]): Finding[] {
       () => `Repeated keyword${repeated.length > 1 ? "s" : ""} ${repeated.map(([w, l]) => `"${w}" ×${l.length}`).join(", ")} — looks like keyword stuffing.`));
   }
 
-  if (t && !hasIdentifier(t)) {
+  if (t && !placeholderIdentifier && !hasIdentifier(t)) {
     out.push(mk(field, "AMZ-TITLE-06", 0, "medium", "Title has no size, count, colour or flavour identifier.", truncate(t)));
   }
 
@@ -337,9 +342,16 @@ export type ValidatableField = "title" | "bullets" | "description";
 /** Replace "[confirm: …]" placeholders with spaces (same length) so they are never checked. */
 export const maskPlaceholders = (s: string) => s.replace(/\[\s*confirm\s*:[^\]]*\]/gi, (m) => " ".repeat(m.length));
 
+/** A [confirm: …] placeholder whose label names a size/count/pack/flavour/colour counts as an identifier for AMZ-TITLE-06. */
+export const hasIdentifierPlaceholder = (s: string) =>
+  Array.from(s.matchAll(/\[\s*confirm\s*:([^\]]*)\]/gi)).some((m) => /\b(size|count|pack|flavou?r|colou?r)/i.test(m[1] ?? ""));
+
 export function validateText(field: ValidatableField, rawText: string | string[], sku: Sku, allSkus: Sku[]): Finding[] {
   const text = Array.isArray(rawText) ? rawText.map(maskPlaceholders) : maskPlaceholders(rawText);
-  if (field === "title") return checkTitle(Array.isArray(text) ? text.join(" ") : text, sku, allSkus);
+  if (field === "title") {
+    const raw = Array.isArray(rawText) ? rawText.join(" ") : rawText;
+    return checkTitle(Array.isArray(text) ? text.join(" ") : text, sku, allSkus, hasIdentifierPlaceholder(raw));
+  }
   if (field === "bullets") return checkBullets(Array.isArray(text) ? text : [text], sku, allSkus);
   return checkDescription(Array.isArray(text) ? text.join("\n") : text, sku, allSkus);
 }

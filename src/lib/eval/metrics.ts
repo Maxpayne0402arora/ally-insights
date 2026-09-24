@@ -52,6 +52,7 @@ export function computeMetrics(run: EvalRun, records: Record<string, SkuRecord>)
   let edits = 0, compliant = 0, leaks = 0;
   let a1Edits = 0, a1Claims = 0, claimFixed = 0, refs = 0, badRefs = 0;
   let findingsTotal = 0, accounted = 0;
+  let autoAdded = 0;
   ok.forEach((r) => {
     const sku = skuById.get(r.sku_id)!;
     r.result!.top_edits.forEach((e) => {
@@ -78,9 +79,14 @@ export function computeMetrics(run: EvalRun, records: Record<string, SkuRecord>)
       badRefs += a1.failures.filter((f) => f.check === "competitor_ref" || f.check === "competitor_evidence").length;
     }
     findingsTotal += r.findings.length;
-    accounted += r.result!.open_issues.filter((o) => !o.auto).length
-      + r.result!.suspected_false_positives.length
-      + r.result!.top_edits.reduce((n, e) => n + e.resolves_finding_ids.length, 0);
+    const ids = new Set(r.findings.map((f) => f.id));
+    const covered = new Set<string>([
+      ...r.result!.top_edits.flatMap((e) => e.resolves_finding_ids),
+      ...r.result!.open_issues.filter((o) => !o.auto).map((o) => o.finding_id),
+      ...r.result!.suspected_false_positives.map((s) => s.finding_id),
+    ]);
+    accounted += Array.from(covered).filter((id) => ids.has(id)).length;
+    autoAdded += r.result!.open_issues.filter((o) => o.auto).length;
   });
   // Findings of failed rows count as unaccounted.
   main.filter((r) => r.status !== "ok").forEach((r) => (findingsTotal += r.findings.length));
@@ -113,7 +119,8 @@ export function computeMetrics(run: EvalRun, records: Record<string, SkuRecord>)
     { key: "claims", group: "AI output quality", label: "Unsupported-claim rate", tip: "First-attempt edits flagged by the unsupported-claims check / first-attempt edits.", value: pct(r(a1Claims, a1Edits)), display: `${fmtPct(r(a1Claims, a1Edits))} (${claimFixed} fixed by retry)`, better: "lower" },
     { key: "fabrication", group: "AI output quality", label: "Evidence fabrication rate", tip: "Invalid competitor_refs in the first attempt / total refs.", value: pct(r(badRefs, refs)), display: fmtPct(r(badRefs, refs)), better: "lower" },
     { key: "leaks", group: "AI output quality", label: "Competitor-name leaks", tip: "Competitor brand mentions in final proposed text (should be 0).", value: leaks, display: String(leaks), better: "lower" },
-    { key: "coverage", group: "AI output quality", label: "Coverage", tip: "Findings the AI accounted for (resolved, open or suspected false positive) / total findings.", value: pct(r(accounted, findingsTotal)), display: fmtPct(r(accounted, findingsTotal)), better: "higher" },
+    { key: "coverage", group: "AI output quality", label: "Coverage", tip: "Unique findings the AI itself placed in resolves_finding_ids, open_issues or suspected_false_positives / total findings. Auto-added open issues are excluded.", value: pct(r(accounted, findingsTotal)), display: fmtPct(r(accounted, findingsTotal)), better: "higher" },
+    { key: "autoAdded", group: "AI output quality", label: "Auto-added to open issues", tip: "Findings the AI ignored, which the app added to open issues automatically (not counted as covered).", value: autoAdded, display: String(autoAdded), better: "lower" },
     { key: "pass1", group: "AI output quality", label: "Guardrail pass (first attempt)", tip: "SKUs whose first attempt had no guardrail failures.", value: pct(firstPass), display: fmtPct(firstPass), better: "higher" },
     { key: "pass2", group: "AI output quality", label: "Guardrail pass (after retry)", tip: "SKUs whose kept attempt had no guardrail failures.", value: pct(finalPass), display: fmtPct(finalPass), better: "higher" },
     { key: "retry", group: "Performance", label: "Retry rate", tip: "SKUs that needed the one retry.", value: pct(retried), display: fmtPct(retried), better: "lower" },

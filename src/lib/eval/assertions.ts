@@ -23,18 +23,26 @@ export function assertionsFor(row: EvalRow): Assertion[] {
   return out;
 }
 
+/** Evidence contains the text, or the text contains the evidence (case-insensitive). */
+export const textMatches = (evidence: string, text: string) => {
+  const e = lc(evidence).trim(), t = lc(text).trim();
+  return !!e && !!t && (e.includes(t) || t.includes(e) || e.split(" · ").some((p) => p && t.includes(p)));
+};
+
 export function evalRuleAssertion(a: Assertion, sku: Sku, allSkus: Sku[]): AssertionResult {
   const findings = auditSku(sku, allSkus);
   const label = assertionLabel(a);
   if (a.type !== "finding_flagged" && a.type !== "finding_not_flagged") throw new Error("not a rule assertion");
-  const matches = findings.filter((f) => (!a.rule_id || f.rule_id === a.rule_id) && (!a.text || lc(f.evidence).includes(lc(a.text))));
+  // Filter by rule first (empty = any rule), then by text.
+  const byRule = findings.filter((f) => !a.rule_id || f.rule_id === a.rule_id);
+  const matches = byRule.filter((f) => !a.text || textMatches(f.evidence, a.text));
   if (a.type === "finding_flagged") {
     return matches.length
       ? { label, type: a.type, kind: "rules", pass: true, reason: `Flagged: "${matches[0]!.evidence}"` }
-      : { label, type: a.type, kind: "rules", pass: false, reason: `No ${a.rule_id || "matching"} finding${a.text ? ` with evidence containing "${a.text}"` : ""}.` };
+      : { label, type: a.type, kind: "rules", pass: false, reason: `No ${a.rule_id || "matching"} finding${a.text ? ` with evidence matching "${a.text}"` : ""}.${byRule.length ? ` Closest: ${byRule.slice(0, 3).map((f) => `[${f.rule_id}] "${f.evidence}"`).join("; ")}` : ""}` };
   }
   return matches.length
-    ? { label, type: a.type, kind: "rules", pass: false, reason: `Wrongly flagged: "${matches[0]!.evidence}"` }
+    ? { label, type: a.type, kind: "rules", pass: false, reason: `Wrongly flagged: [${matches[0]!.rule_id}] "${matches[0]!.evidence}"` }
     : { label, type: a.type, kind: "rules", pass: true, reason: "Not flagged." };
 }
 

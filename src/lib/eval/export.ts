@@ -31,6 +31,7 @@ const MD_LABELS: Record<string, string> = {
   fabrication: "Evidence fabrication rate (first attempt)",
   leaks: "Competitor-name leaks",
   coverage: "Coverage",
+  autoAdded: "Auto-added to open issues",
 };
 
 function metricRows(run: EvalRun, records: Record<string, SkuRecord>) {
