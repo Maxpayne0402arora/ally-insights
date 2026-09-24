@@ -13,7 +13,7 @@ import { evaluateRow } from "@/lib/eval/assertions";
 import { computeMetrics, type RowOutcome } from "@/lib/eval/metrics";
 import { deleteRun, loadRecords, loadRuns, saveRecord, saveRun } from "@/lib/eval/store";
 import { download, metricsMarkdown, resultsCsv } from "@/lib/eval/export";
-import type { EvalRun, EvalSet, RunMode, SkuRecord } from "@/lib/eval/types";
+import type { EvalRow, EvalRun, EvalSet, RunMode, SkuRecord } from "@/lib/eval/types";
 import { CompareRuns, ConsistencyPanel, HumanScoring, MetricCards, OutcomeTables, RecordDetail } from "@/components/eval/EvalParts";
 
 export const Route = createFileRoute("/eval")({
@@ -32,6 +32,21 @@ export const Route = createFileRoute("/eval")({
 });
 
 const CONCURRENCY = 5;
+
+type Task = { key: string; row: EvalRow; repeatOf?: string };
+
+/** Rebuild the full task list for a run from its stored settings. */
+function buildTasks(run: EvalRun): Task[] {
+  const clients = run.set.rows.filter((r) => r.sku.is_client);
+  const aiRows = run.mode === "scenarios" ? run.set.rows.filter((r) => r.scenario) : run.mode === "firstN" ? clients.slice(0, run.firstN ?? 10) : clients;
+  const tasks: Task[] = aiRows.map((row) => ({ key: row.sku.sku_id, row }));
+  if (run.consistency) {
+    seededShuffle(clients, run.sampleSeed).slice(0, 5).forEach((row) => {
+      for (let i = 1; i <= 3; i++) tasks.push({ key: `${row.sku.sku_id}#c${i}`, row, repeatOf: row.sku.sku_id });
+    });
+  }
+  return tasks;
+}
 
 function EvalPage() {
   const [set, setSet] = useState<EvalSet | null>(null);
@@ -52,10 +67,34 @@ function EvalPage() {
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   const ctrlRef = useRef<AbortController | null>(null);
+  const activeRunRef = useRef<EvalRun | null>(null);
 
   useEffect(() => {
-    loadRuns().then(setRuns);
+    // Runs left "running"/"paused" by a closed tab or sleeping computer are interrupted: mark them resumable.
+    loadRuns().then(async (loaded) => {
+      const stale = loaded.filter((r) => r.status === "running" || r.status === "paused");
+      if (stale.length) {
+        await Promise.all(stale.map((r) => saveRun({ ...r, status: "paused" })));
+        loaded = loaded.map((r) => (r.status === "running" ? { ...r, status: "paused" as const } : r));
+      }
+      setRuns(loaded);
+    });
   }, []);
+
+  // If the tab closes or the computer sleeps mid-run, persist the run as paused so it can be resumed.
+  useEffect(() => {
+    const onHide = () => {
+      const r = activeRunRef.current;
+      if (r && ctrlRef.current) void saveRun({ ...r, status: "paused" });
+    };
+    window.addEventListener("pagehide", onHide);
+    window.addEventListener("beforeunload", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      window.removeEventListener("beforeunload", onHide);
+    };
+  }, []);
+
   const ensureRecords = useCallback(async (id: string) => {
     if (records[id]) return;
     const r = await loadRecords(id);
@@ -71,6 +110,7 @@ function EvalPage() {
 
   const updateRun = (r: EvalRun) => {
     setRuns((p) => p.map((x) => (x.id === r.id ? r : x)));
+    if (activeRunRef.current?.id === r.id) activeRunRef.current = r;
     void saveRun(r);
   };
 
@@ -80,6 +120,59 @@ function EvalPage() {
     setParseErrors(errors);
     setRowErrors(re);
     setSet(s);
+  };
+
+  /** Run (or resume) a run: tasks with a saved record are skipped, so progress is never redone. */
+  const executeRun = async (baseRun: EvalRun) => {
+    const id = baseRun.id;
+    const allTasks = buildTasks(baseRun);
+    const existing = await loadRecords(id);
+    setRecords((p) => ({ ...p, [id]: existing }));
+    const tasks = allTasks.filter((t) => !existing[t.key]);
+    const skipped = allTasks.length - tasks.length;
+
+    const running: EvalRun = { ...baseRun, status: "running" };
+    activeRunRef.current = running;
+    setRuns((p) => p.map((x) => (x.id === id ? running : x)));
+    await saveRun(running);
+
+    const ctrl = new AbortController();
+    ctrlRef.current = ctrl;
+    pausedRef.current = false;
+    setPaused(false);
+    setProgress({ done: skipped, total: allTasks.length });
+    const system = PROMPTS[baseRun.promptVersion]!.system;
+    let model: string | null = baseRun.model;
+    let next = 0, done = skipped;
+    const worker = async () => {
+      while (!ctrl.signal.aborted) {
+        while (pausedRef.current && !ctrl.signal.aborted) await new Promise((r) => setTimeout(r, 300));
+        if (ctrl.signal.aborted) return;
+        const t = tasks[next++];
+        if (!t) return;
+        try {
+          const out = await runSkuPipeline(t.row.sku, baseRun.set.skus, system, ctrl.signal);
+          const rec: SkuRecord = { ...out, key: t.key, scenario: t.row.scenario, consistencyOf: t.repeatOf, assertions: [] };
+          if (!t.repeatOf) rec.assertions = evaluateRow(t.row, baseRun.set.skus, rec);
+          model ??= rec.attempts.find((a) => a.model)?.model ?? null;
+          await saveRecord(id, rec);
+          setRecords((p) => ({ ...p, [id]: { ...p[id], [t.key]: rec } }));
+        } catch {
+          if (ctrl.signal.aborted) return;
+        }
+        done++;
+        setProgress({ done, total: allTasks.length });
+      }
+    };
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+    const status: EvalRun["status"] = ctrl.signal.aborted ? "cancelled" : pausedRef.current ? "paused" : "done";
+    const final: EvalRun = { ...activeRunRef.current!, model, status };
+    activeRunRef.current = null;
+    setRuns((p) => p.map((x) => (x.id === id ? final : x)));
+    await saveRun(final);
+    setProgress(null);
+    ctrlRef.current = null;
+    toast(status === "done" ? "Eval run finished" : status === "paused" ? "Eval run paused — resume anytime" : "Eval run cancelled — resume anytime");
   };
 
   const start = async () => {
@@ -93,52 +186,15 @@ function EvalPage() {
       status: "running", mode, firstN, consistency: consistencyOn, set, queue: aiRows.map((r) => r.sku.sku_id),
       sampleSeed: Math.floor(Math.random() * 1e9), scores: {},
     };
-    const tasks: { key: string; row: (typeof set.rows)[number]; repeatOf?: string }[] = aiRows.map((row) => ({ key: row.sku.sku_id, row }));
-    if (consistencyOn) {
-      seededShuffle(clients, newRun.sampleSeed).slice(0, 5).forEach((row) => {
-        for (let i = 1; i <= 3; i++) tasks.push({ key: `${row.sku.sku_id}#c${i}`, row, repeatOf: row.sku.sku_id });
-      });
-    }
     setRuns((p) => [newRun, ...p]);
-    setRecords((p) => ({ ...p, [id]: {} }));
     setActiveId(id);
     await saveRun(newRun);
+    await executeRun(newRun);
+  };
 
-    const ctrl = new AbortController();
-    ctrlRef.current = ctrl;
-    pausedRef.current = false;
-    setPaused(false);
-    setProgress({ done: 0, total: tasks.length });
-    const system = PROMPTS[version]!.system;
-    let model: string | null = null;
-    let next = 0, done = 0;
-    const worker = async () => {
-      while (!ctrl.signal.aborted) {
-        while (pausedRef.current && !ctrl.signal.aborted) await new Promise((r) => setTimeout(r, 300));
-        if (ctrl.signal.aborted) return;
-        const t = tasks[next++];
-        if (!t) return;
-        try {
-          const out = await runSkuPipeline(t.row.sku, set.skus, system, ctrl.signal);
-          const rec: SkuRecord = { ...out, key: t.key, scenario: t.row.scenario, consistencyOf: t.repeatOf, assertions: [] };
-          if (!t.repeatOf) rec.assertions = evaluateRow(t.row, set.skus, rec);
-          model ??= rec.attempts.find((a) => a.model)?.model ?? null;
-          await saveRecord(id, rec);
-          setRecords((p) => ({ ...p, [id]: { ...p[id], [t.key]: rec } }));
-        } catch {
-          if (ctrl.signal.aborted) return;
-        }
-        done++;
-        setProgress({ done, total: tasks.length });
-      }
-    };
-    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-    const final: EvalRun = { ...newRun, model, status: ctrl.signal.aborted ? "cancelled" : "done" };
-    setRuns((p) => p.map((x) => (x.id === id ? { ...x, model, status: final.status } : x)));
-    await saveRun({ ...(await loadRuns()).find((r) => r.id === id) ?? final, model, status: final.status });
-    setProgress(null);
-    ctrlRef.current = null;
-    toast(ctrl.signal.aborted ? "Eval run cancelled" : "Eval run finished");
+  const resume = async (r: EvalRun) => {
+    setActiveId(r.id);
+    await executeRun(r);
   };
 
   const togglePause = () => {
@@ -149,13 +205,18 @@ function EvalPage() {
 
   const metrics = useMemo(() => (run ? computeMetrics(run, recs) : null), [run, recs]);
   const openOutcome = (o: RowOutcome) => o.record && setDetail(o.record);
+  const resumable = (r: EvalRun) => {
+    if (progress || (r.status !== "paused" && r.status !== "cancelled")) return false;
+    const done = records[r.id] ? Object.keys(records[r.id]).length : 0;
+    return done < buildTasks(r).length;
+  };
 
   return (
     <div className="space-y-8">
       <header>
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Internal · product team</p>
         <h1 className="text-2xl font-semibold text-foreground">Eval</h1>
-        <p className="text-sm text-muted-foreground">Measure the rules engine and AI on a fixed test set. Runs are stored separately and never touch review data.</p>
+        <p className="text-sm text-muted-foreground">Measure the rules engine and AI on a fixed test set. Progress is saved after every SKU — if the tab closes or the computer sleeps, resume the run and it continues where it stopped.</p>
       </header>
 
       <section className="space-y-4 rounded-lg border border-border bg-card p-5">
@@ -242,6 +303,9 @@ function EvalPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Input aria-label="Run name" className="max-w-md font-semibold" value={run.name} onChange={(e) => updateRun({ ...run, name: e.target.value })} />
               <div className="flex flex-wrap gap-2">
+                {resumable(run) && (
+                  <Button size="sm" onClick={() => resume(run)}>Resume run ({Object.keys(recs).length}/{buildTasks(run).length} done)</Button>
+                )}
                 <Button size="sm" variant="outline" onClick={() => download(`${run.name}-results.csv`, resultsCsv(run, recs), "text/csv")}>Export results (CSV)</Button>
                 <Button size="sm" variant="outline" onClick={() => download(`${run.name}-metrics.md`, cmp ? metricsMarkdown(cmp, cmpRecs, run, recs) : metricsMarkdown(run, recs), "text/markdown")}>Export metrics (Markdown)</Button>
                 <Button size="sm" variant="ghost" disabled={!!progress && run.status === "running"} onClick={async () => {
