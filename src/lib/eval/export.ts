@@ -1,6 +1,6 @@
 import Papa from "papaparse";
 import { computeMetrics, humanSummary, sampleEdits, type Metric } from "./metrics";
-import type { EvalRun, SkuRecord } from "./types";
+import { isRulesOnlyRow, type EvalRun, type SkuRecord } from "./types";
 
 export function download(name: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -51,7 +51,9 @@ function metricRows(run: EvalRun, records: Record<string, SkuRecord>) {
 function header(run: EvalRun) {
   const clients = run.set.rows.filter((r) => r.sku.is_client).length;
   const scen = run.set.rows.filter((r) => r.scenario).length;
-  return `Prompt ${run.promptVersion} · Model ${run.model ?? "—"} · ${new Date(run.createdAt).toLocaleString()} · ${clients} client SKUs · ${scen} scenarios`;
+  const rulesOnly = run.set.rows.filter(isRulesOnlyRow).length;
+  const ai = run.set.rows.filter((r) => r.sku.is_client && !isRulesOnlyRow(r)).length;
+  return `Prompt ${run.promptVersion} · Model ${run.model ?? "—"} · ${new Date(run.createdAt).toLocaleString()} · ${ai} AI rows · ${rulesOnly} rules-only rows · ${clients} client SKUs · ${scen} scenarios`;
 }
 
 function failedScenarios(run: EvalRun, records: Record<string, SkuRecord>) {
