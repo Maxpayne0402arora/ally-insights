@@ -22,7 +22,7 @@ export function buildSegments(text: string, findings: Finding[]): Segment[] {
   const merged: Segment[] = [];
   for (const r of ranges) {
     const last = merged[merged.length - 1];
-    if (last && r.start <= last.end) {
+    if (last && (r.start <= last.end || /^[ \t]+$/.test(text.slice(last.end, r.start)))) {
       last.end = Math.max(last.end, r.end);
       if (weight[r.finding.severity] > weight[last.severity]) last.severity = r.finding.severity;
       if (!last.findings.includes(r.finding)) last.findings.push(r.finding);
