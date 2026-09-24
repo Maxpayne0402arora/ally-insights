@@ -148,7 +148,8 @@ export function ListingContent({ sku, allSkus, showHeading = true, evidence }: {
                     <span className="block">{highlightedText(bullet, fieldFindings(`bullet_${index + 1}`))}</span>
                   </span>
                 </li>
-              ))}
+                );
+              })}
             </ol>
           ) : <p className="mt-2 text-sm italic text-muted-foreground">No bullets provided</p>}
         </div>
