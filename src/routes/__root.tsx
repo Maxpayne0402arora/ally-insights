@@ -141,6 +141,9 @@ function RootComponent() {
               {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
               <Outlet />
             </main>
+            <footer className="mx-auto max-w-7xl px-4 pb-8 text-right text-xs text-muted-foreground sm:px-6">
+              <Link to="/eval" className="hover:text-foreground hover:underline">Eval</Link>
+            </footer>
           </div>
           <Toaster position="top-right" />
         </RuleDrawerProvider>

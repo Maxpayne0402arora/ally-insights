@@ -14,7 +14,7 @@ import { rankReason } from "@/lib/top3";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useGeneration, type JobState, type StoredResult, type AttemptLog } from "@/context/GenerationContext";
-import { TOP3_EDITS_PROMPT_VERSION } from "@/prompts/top3Edits";
+import { CURRENT_PROMPT_VERSION as TOP3_EDITS_PROMPT_VERSION } from "@/prompts";
 import type { GuardFailure } from "@/lib/top3";
 import type { Finding, Sku } from "@/types/sku";
 

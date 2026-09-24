@@ -233,8 +233,8 @@ export function normalize(raw: unknown): { result: AiResult; failures: GuardFail
 /* Guardrail                                                           */
 /* ------------------------------------------------------------------ */
 
-const asList = (t: FieldText) => (Array.isArray(t) ? t : [t]);
-const joined = (t: FieldText) => asList(t).join("\n");
+export const asList = (t: FieldText) => (Array.isArray(t) ? t : [t]);
+export const joined = (t: FieldText) => asList(t).join("\n");
 const sameText = (a: FieldText, b: FieldText) =>
   JSON.stringify(asList(a).map((s) => s.trim())) === JSON.stringify(asList(b).map((s) => s.trim()));
 
