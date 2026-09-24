@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SkuDataProvider } from "@/context/SkuDataContext";
 import { TopNav } from "@/components/TopNav";
 import { Toaster } from "@/components/ui/sonner";
+import { RuleDrawerProvider } from "@/context/RuleDrawerContext";
 
 function NotFoundComponent() {
   return (
@@ -129,14 +130,16 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <SkuDataProvider>
-        <div className="min-h-screen bg-background">
-          <TopNav />
-          <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Outlet />
-          </main>
-        </div>
-        <Toaster position="top-right" />
+        <RuleDrawerProvider>
+          <div className="min-h-screen overflow-x-clip bg-background">
+            <TopNav />
+            <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+              <Outlet />
+            </main>
+          </div>
+          <Toaster position="top-right" />
+        </RuleDrawerProvider>
       </SkuDataProvider>
     </QueryClientProvider>
   );

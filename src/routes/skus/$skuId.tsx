@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo } from "react";
-import { ArrowLeft, Info, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Info, Sparkles } from "lucide-react";
 import { StepIndicator } from "@/components/StepIndicator";
 import { RoleBadge, ScoreBadge } from "@/components/ScoreBadge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,11 @@ import {
 } from "@/lib/rules";
 import type { Finding, Sku } from "@/types/sku";
 import { cn } from "@/lib/utils";
+import { ListingContent } from "@/components/ListingContent";
+import { CompetitorDrawer } from "@/components/CompetitorDrawer";
+import { useRuleDrawer } from "@/context/RuleDrawerContext";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 export const Route = createFileRoute("/skus/$skuId")({
   head: () => ({
@@ -51,6 +56,8 @@ function ReportPage() {
   const { skuId } = Route.useParams();
   const { skus, hasData, hydrated } = useSkuData();
   const navigate = useNavigate();
+  const { openRule } = useRuleDrawer();
+  const [peekSku, setPeekSku] = useState<Sku | null>(null);
 
   useEffect(() => {
     if (hydrated && !hasData) {
@@ -82,6 +89,12 @@ function ReportPage() {
     [sku, skus],
   );
 
+  const groupedSkus = useMemo(() => {
+    const map = new Map<string, Sku[]>();
+    skus.forEach((item) => map.set(item.competitor_group, [...(map.get(item.competitor_group) ?? []), item]));
+    return Array.from(map.entries());
+  }, [skus]);
+
   if (!hydrated) return <div className="h-40 animate-pulse rounded-xl bg-muted" />;
 
   if (!sku) {
@@ -102,6 +115,11 @@ function ReportPage() {
   }
 
   const score = complianceScore(findings);
+  const currentGroup = skus.filter((item) => item.competitor_group === sku.competitor_group);
+  const currentIndex = currentGroup.findIndex((item) => item.sku_id === sku.sku_id);
+  const previous = currentIndex > 0 ? currentGroup[currentIndex - 1] : undefined;
+  const next = currentIndex < currentGroup.length - 1 ? currentGroup[currentIndex + 1] : undefined;
+  const goToSku = (nextSkuId: string) => navigate({ to: "/skus/$skuId", params: { skuId: nextSkuId } });
   const columns: Sku[] = [sku, ...peers];
 
   const metrics = columns.map((s) => {
@@ -231,12 +249,33 @@ function ReportPage() {
     <div>
       <StepIndicator current={3} />
 
-      <Link
-        to="/skus"
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to SKUs
-      </Link>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem><BreadcrumbLink asChild><Link to="/">Load data</Link></BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbLink asChild><Link to="/skus">SKUs</Link></BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbPage>{sku.brand}</BreadcrumbPage></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      <div className="mt-5 flex flex-col gap-2 border-y border-border py-4 sm:flex-row sm:items-center">
+        <Select value={sku.sku_id} onValueChange={goToSku}>
+          <SelectTrigger className="sm:max-w-sm" aria-label="Switch SKU"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {groupedSkus.map(([group, list]) => (
+              <SelectGroup key={group}>
+                <SelectLabel>{group}</SelectLabel>
+                {list.map((item) => <SelectItem key={item.sku_id} value={item.sku_id}>{item.brand} · {item.sku_id}</SelectItem>)}
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex gap-2 sm:ml-auto">
+          <Button variant="outline" size="icon" className="min-h-11 min-w-11" disabled={!previous} onClick={() => previous && goToSku(previous.sku_id)} aria-label="Previous SKU in group"><ChevronLeft /></Button>
+          <Button variant="outline" size="icon" className="min-h-11 min-w-11" disabled={!next} onClick={() => next && goToSku(next.sku_id)} aria-label="Next SKU in group"><ChevronRight /></Button>
+        </div>
+      </div>
 
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-3xl">
@@ -265,7 +304,7 @@ function ReportPage() {
           No competitors in this group. Showing a guidelines-only audit.
         </div>
       ) : (
-        <div className="mt-8 overflow-x-auto rounded-xl border border-border bg-card">
+        <div className="mt-8 max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-border bg-card">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-border bg-secondary text-left">
@@ -273,17 +312,14 @@ function ReportPage() {
                   Metric
                 </th>
                 {columns.map((c, i) => (
-                  <th
-                    key={c.sku_id}
-                    className={cn(
-                      "px-4 py-3 font-medium",
-                      i === 0 ? "bg-primary/10 text-primary" : "text-foreground",
+                  <th key={c.sku_id} className={cn("px-4 py-3 font-medium", i === 0 ? "bg-primary/10 text-primary" : "text-foreground")}> 
+                    {i === 0 ? (
+                      <><span>{c.brand}</span><span className="block font-mono text-xs font-normal opacity-70">{c.sku_id}</span></>
+                    ) : (
+                      <button type="button" onClick={() => setPeekSku(c)} className="min-h-11 text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`View ${c.brand} listing`}>
+                        {c.brand}<span className="block font-mono text-xs font-normal opacity-70">{c.sku_id}</span>
+                      </button>
                     )}
-                  >
-                    {c.brand}
-                    <span className="block font-mono text-xs font-normal opacity-70">
-                      {c.sku_id}
-                    </span>
                   </th>
                 ))}
               </tr>
@@ -314,6 +350,10 @@ function ReportPage() {
         </div>
       )}
 
+      <section className="mt-12 border-y border-border py-8">
+        <ListingContent sku={sku} allSkus={skus} />
+      </section>
+
       <section className="mt-12">
         <h2 className="text-lg font-semibold text-foreground">
           Findings ({findings.length})
@@ -324,8 +364,8 @@ function ReportPage() {
         </p>
 
         {findings.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-            No guideline violations detected on this listing.
+          <div className="mt-4 rounded-lg border border-success/30 bg-success-soft p-6 text-sm font-medium text-success">
+            No guideline issues found
           </div>
         ) : (
           <div className="mt-4 space-y-6">
@@ -336,7 +376,19 @@ function ReportPage() {
                 </h3>
                 <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
                   {list.map((f) => (
-                    <li key={f.id} className="flex gap-3 px-4 py-3">
+                    <li key={f.id} className="flex items-start gap-3 px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = document.getElementById(`evidence-${f.id}`)
+                            ?? document.getElementById(`listing-field-${f.field}`)
+                            ?? (f.field.startsWith("bullet_") ? document.getElementById("listing-field-bullets") : null);
+                          target?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          target?.animate([{ outline: "3px solid currentColor" }, { outline: "0 solid transparent" }], { duration: 1400 });
+                          target?.focus({ preventScroll: true });
+                        }}
+                        className="flex min-w-0 flex-1 gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
                       <span
                         className={cn(
                           "mt-0.5 h-fit rounded-md px-2 py-0.5 text-xs font-semibold uppercase",
@@ -352,13 +404,17 @@ function ReportPage() {
                             {f.evidence}
                           </p>
                         )}
-                        <a
-                          href={`/guidelines#${f.rule_id}`}
-                          className="mt-2 inline-block rounded-md bg-secondary px-2 py-0.5 font-mono text-xs text-primary hover:underline"
-                        >
-                          {f.rule_id}
-                        </a>
                       </div>
+                      </button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => openRule(f.rule_id)}
+                        className="h-auto shrink-0 px-2 py-1 font-mono text-xs text-primary"
+                      >
+                        {f.rule_id}
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -383,6 +439,7 @@ function ReportPage() {
           Generate recommendations
         </Button>
       </section>
+      <CompetitorDrawer sku={peekSku} allSkus={skus} onClose={() => setPeekSku(null)} />
     </div>
   );
 }

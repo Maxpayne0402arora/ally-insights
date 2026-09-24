@@ -2,9 +2,12 @@ import { Link } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
 import { useSkuData } from "@/context/SkuDataContext";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useRuleDrawer } from "@/context/RuleDrawerContext";
 
 export function TopNav() {
   const { hasData } = useSkuData();
+  const { openAllRules } = useRuleDrawer();
 
   const linkCls =
     "rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground";
@@ -44,13 +47,14 @@ export function TopNav() {
               2 · Select SKU
             </span>
           )}
-          <Link
-            to="/guidelines"
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={openAllRules}
             className={linkCls}
-            activeProps={{ className: cn(linkCls, activeCls) }}
           >
             Guidelines
-          </Link>
+          </Button>
         </nav>
       </div>
     </header>
