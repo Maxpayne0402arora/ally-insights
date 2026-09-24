@@ -150,7 +150,9 @@ export function extractJson(text: string): unknown {
 const fixConfirm = (s: string) => s.replace(/\[\s*confirm\s*:\s*([^\]]*?)\s*\]/gi, (_m, inner: string) => `[confirm: ${inner}]`);
 const str = (x: unknown) => (typeof x === "string" ? fixConfirm(x.trim()) : "");
 const strList = (x: unknown) => (Array.isArray(x) ? x.map(str).filter(Boolean) : []);
-const obj = (x: unknown): Record<string, unknown> => (x && typeof x === "object" && !Array.isArray(x) ? (x as Record<string, unknown>) : {});
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Loose = { [key: string]: any };
+const obj = (x: unknown): Loose => (x && typeof x === "object" && !Array.isArray(x) ? (x as Loose) : {});
 
 function fieldText(field: EditField, x: unknown): FieldText {
   if (field === "bullets") {
