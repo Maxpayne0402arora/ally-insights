@@ -53,7 +53,7 @@ export type SkuRecord = {
   key: string; // sku_id, or sku_id#c<n> for consistency repeats
   sku_id: string;
   scenario: string;
-  consistencyOf?: string;
+  consistencyOf?: string | undefined;
   status: "ok" | "failed" | "skipped";
   error?: string;
   attempts: AttemptRecord[];
