@@ -14,6 +14,7 @@ import { StepIndicator } from "@/components/StepIndicator";
 import { RoleBadge, ScoreBadge } from "@/components/ScoreBadge";
 import { Button } from "@/components/ui/button";
 import { useSkuData } from "@/context/SkuDataContext";
+import { useReview, useReviewStatuses } from "@/context/ReviewContext";
 import { csvTemplate, MAX_BYTES, parseCsv, type ParseResult } from "@/lib/csv";
 import { auditSku, complianceScore } from "@/lib/rules";
 import { sampleSkus } from "@/data/sampleSkus";
@@ -93,6 +94,17 @@ function LoadDataPage() {
   const [pendingName, setPendingName] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
   const [notice, setNotice] = useState(false);
+  const { clearAll } = useReview();
+  const { atRisk } = useReviewStatuses(skus);
+
+  /** Confirm replacing the loaded dataset; warns when approved/pending edits would be cleared. */
+  function confirmReplace() {
+    if (!hasData) return true;
+    const extra = atRisk > 0 ? `\n\nApproved edits for ${atRisk} SKU${atRisk === 1 ? "" : "s"} will be cleared. Download their summaries first.` : "";
+    if (!window.confirm(`Replace ${fileName ?? "the loaded data"} with the new data?${extra}`)) return false;
+    clearAll();
+    return true;
+  }
 
   useEffect(() => {
     try {
@@ -139,6 +151,7 @@ function LoadDataPage() {
   }
 
   function loadSample() {
+    if (!confirmReplace()) return;
     setDataset(sampleSkus, "sample", "Sample data");
     toast.success("8 SKUs loaded from Sample data");
     navigate({ to: "/skus" });
@@ -146,6 +159,7 @@ function LoadDataPage() {
 
   function commit() {
     if (!pending || pending.errors.length || !pending.skus.length) return;
+    if (!confirmReplace()) return;
     setDataset(pending.skus, "upload", pendingName);
     toast.success(`${pending.skus.length} SKUs loaded from ${pendingName}`);
     navigate({ to: "/skus" });
