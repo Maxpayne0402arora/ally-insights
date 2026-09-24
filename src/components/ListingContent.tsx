@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import { auditSku } from "@/lib/rules";
+import { auditSku, bulletClarity, BULLET_CLARITY_TIP } from "@/lib/rules";
 import type { Finding, Severity, Sku } from "@/types/sku";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -123,7 +123,28 @@ export function ListingContent({ sku, allSkus, showHeading = true, evidence }: {
               {sku.bullets.map((bullet, index) => (
                 <li id={`listing-field-bullet_${index + 1}`} key={`${sku.sku_id}-bullet-${index}`} className="scroll-mt-24 flex gap-3 text-sm leading-6 text-foreground">
                   <span className="text-muted-foreground">{index + 1}.</span>
-                  <span>{highlightedText(bullet, fieldFindings(`bullet_${index + 1}`))}</span>
+                  <span className="min-w-0 flex-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          tabIndex={0}
+                          className={cn(
+                            "mb-1 inline-block rounded-md px-1.5 py-0.5 text-[11px] font-medium",
+                            clarity.label === "Clear" ? "bg-success-soft text-success"
+                              : clarity.label === "Feature-only" ? "bg-secondary text-muted-foreground"
+                              : "bg-warning-soft text-warning",
+                          )}
+                        >
+                          {clarity.label}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>{clarity.reason}</p>
+                        <p className="mt-1 text-muted-foreground">{BULLET_CLARITY_TIP}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <span className="block">{highlightedText(bullet, fieldFindings(`bullet_${index + 1}`))}</span>
+                  </span>
                 </li>
               ))}
             </ol>
