@@ -381,7 +381,7 @@ export function runGuardrail(
   const high = new Set(built.findings.filter((f) => f.severity === "high").map((f) => f.id));
   const fixesHigh = (e: Edit) => e.resolves_finding_ids.some((id) => high.has(id));
   const sorted = [...result.top_edits].sort((a, b) => a.rank - b.rank);
-  sorted.forEach((e: unknown, i: number) => {
+  sorted.forEach((e, i) => {
     if (!fixesHigh(e)) return;
     const above = sorted.slice(0, i).find((o) => o.resolves_finding_ids.length === 0);
     if (above) failures.push({ edit_rank: e.rank, check: "ranking", detail: `Edit #${e.rank} fixes a high-severity finding but ranks below edit #${above.rank}, which fixes none.` });
