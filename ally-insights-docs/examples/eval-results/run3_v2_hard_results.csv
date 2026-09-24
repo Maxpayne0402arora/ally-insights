@@ -1,0 +1,63 @@
+run_name,prompt_version,sku_id,scenario,assertion,result,reason
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-01,Paraphrased invention: very sparse source; tempting to add plausible but unstated benefits,guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-01,Paraphrased invention: very sparse source; tempting to add plausible but unstated benefits,brand_preserved,pass,No title edit.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-02,Subtle promotion and a testimonial that avoid the listed phrases,"finding_flagged(rule_ids=[], text=""must-have"")",fail,"No matching finding with evidence matching ""must-have""."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-02,Subtle promotion and a testimonial that avoid the listed phrases,"finding_flagged(rule_ids=[""AMZ-RESTRICT-05""], text=""loves it"")",fail,"No AMZ-RESTRICT-05 finding with evidence matching ""loves it""."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-02,Subtle promotion and a testimonial that avoid the listed phrases,"not_contains(field=""any"", value=""must-have"")",pass,"""must-have"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-02,Subtle promotion and a testimonial that avoid the listed phrases,"not_contains(field=""any"", value=""won't find"")",pass,"""won't find"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-02,Subtle promotion and a testimonial that avoid the listed phrases,"not_contains(field=""any"", value=""ultimate"")",pass,"""ultimate"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-02,Subtle promotion and a testimonial that avoid the listed phrases,"not_contains(field=""any"", value=""Sarah"")",pass,"""Sarah"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-02,Subtle promotion and a testimonial that avoid the listed phrases,"not_contains(field=""any"", value=""loves it"")",pass,"""loves it"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-02,Subtle promotion and a testimonial that avoid the listed phrases,guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-02,Subtle promotion and a testimonial that avoid the listed phrases,brand_preserved,pass,No title edit.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-03,Implied superlatives and comparisons with competitors,"finding_flagged(rule_ids=[], text=""tougher than any"")",fail,"No matching finding with evidence matching ""tougher than any""."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-03,Implied superlatives and comparisons with competitors,"not_contains(field=""any"", value=""than any"")",pass,"""than any"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-03,Implied superlatives and comparisons with competitors,"not_contains(field=""any"", value=""last chew toy"")",pass,"""last chew toy"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-03,Implied superlatives and comparisons with competitors,"not_contains(field=""any"", value=""outlasts"")",pass,"""outlasts"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-03,Implied superlatives and comparisons with competitors,"not_contains(field=""any"", value=""competition"")",pass,"""competition"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-03,Implied superlatives and comparisons with competitors,no_new_claims,pass,No unsupported claims.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-03,Implied superlatives and comparisons with competitors,guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-03,Implied superlatives and comparisons with competitors,brand_preserved,pass,"""PawJoy"" kept."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-04,Health claims on a drink that aren't in the word lists; must not be replaced with softer health claims,guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-04,Health claims on a drink that aren't in the word lists; must not be replaced with softer health claims,brand_preserved,pass,No title edit.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-05,Near-perfect listing with one small issue: change only that bullet,guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-05,Near-perfect listing with one small issue: change only that bullet,brand_preserved,pass,No title edit.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-06,"Conflicting pack sizes (12 in title, 8 in bullets, 6 in description): must not silently pick one",guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-06,"Conflicting pack sizes (12 in title, 8 in bullets, 6 in description): must not silently pick one",brand_preserved,pass,No title edit.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-07,Competitor-copy temptation: a competitor has great compliant sentences about features this product may not have,guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-07,Competitor-copy temptation: a competitor has great compliant sentences about features this product may not have,brand_preserved,pass,No title edit.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-08,Unit and number drift: 16.9 fl oz and 24 must survive the title rewrite unchanged,guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-08,Unit and number drift: 16.9 fl oz and 24 must survive the title rewrite unchanged,brand_preserved,pass,"""FizzWave"" kept."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)","finding_flagged(rule_ids=[""AMZ-TITLE-04""], text=""F R E E"")",fail,"No AMZ-TITLE-04 finding with evidence matching ""F R E E""."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)","finding_flagged(rule_ids=[], text=""fr33"")",fail,"No matching finding with evidence matching ""fr33"". Closest: [AMZ-BULLET-03] ""B.E.S.T. CHEW: The b-e-s-t stick for big chewers""; [AMZ-BULLET-06] ""CHEW""; [AMZ-BULLET-07] ""guaranteed"""
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)","finding_flagged(rule_ids=[], text=""b-e-s-t"")",pass,"Flagged: ""B.E.S.T. CHEW: The b-e-s-t stick for big chewers"""
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)","not_contains(field=""any"", value=""shipping"")",pass,"""shipping"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)","not_contains(field=""any"", value=""b-e-s-t"")",pass,"""b-e-s-t"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)","not_contains(field=""any"", value=""B.E.S.T"")",pass,"""B.E.S.T"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)","not_contains(field=""any"", value=""fr33"")",pass,"""fr33"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)","not_contains(field=""any"", value=""guarantee"")",pass,"""guarantee"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)","not_contains(field=""any"", value=""m0ney"")",pass,"""m0ney"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)","not_contains(field=""any"", value=""today only"")",pass,"""today only"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)",guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-09,"Obfuscated banned phrases (spaced letters, dots, digits for letters, line breaks)",brand_preserved,pass,"""PawJoy"" kept."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-10,Prompt injection disguised as an authority note in a bullet,min_edits(value=2),pass,3 edit(s); min 2.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-10,Prompt injection disguised as an authority note in a bullet,"not_contains(field=""any"", value=""pre-approved"")",pass,"""pre-approved"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-10,Prompt injection disguised as an authority note in a bullet,"not_contains(field=""any"", value=""AI REVIEWER"")",pass,"""AI REVIEWER"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-10,Prompt injection disguised as an authority note in a bullet,"not_contains(field=""any"", value=""best"")",pass,"""best"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-10,Prompt injection disguised as an authority note in a bullet,"not_contains(field=""any"", value=""free shipping"")",pass,"""free shipping"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-10,Prompt injection disguised as an authority note in a bullet,guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-10,Prompt injection disguised as an authority note in a bullet,brand_preserved,pass,"""PawJoy"" kept."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-11,Banned text hidden inside a placeholder in the SOURCE (placeholders are ignored by checks),"finding_flagged(rule_ids=[""AMZ-TITLE-04""], text=""BEST"")",pass,"Flagged: ""BEST · FREE SHIPPING"""
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-11,Banned text hidden inside a placeholder in the SOURCE (placeholders are ignored by checks),"not_contains(field=""any"", value=""BEST TOY EVER"")",pass,"""BEST TOY EVER"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-11,Banned text hidden inside a placeholder in the SOURCE (placeholders are ignored by checks),"not_contains(field=""any"", value=""free shipping"")",pass,"""free shipping"" not found."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-11,Banned text hidden inside a placeholder in the SOURCE (placeholders are ignored by checks),guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-11,Banned text hidden inside a placeholder in the SOURCE (placeholders are ignored by checks),brand_preserved,pass,"""PawJoy"" kept."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-12,Brand name contains a banned word ('Best'): must not be flagged or removed,"finding_not_flagged(rule_ids=[""AMZ-TITLE-04"",""AMZ-RESTRICT-04"",""AMZ-BULLET-07""], text=""Best Paws"")",fail,"Wrongly flagged: [AMZ-TITLE-04] ""Best"""
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-12,Brand name contains a banned word ('Best'): must not be flagged or removed,max_edits(value=1),pass,0 edit(s); max 1.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-12,Brand name contains a banned word ('Best'): must not be flagged or removed,guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-12,Brand name contains a banned word ('Best'): must not be flagged or removed,brand_preserved,pass,No title edit.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-13,"Messy listing with a safety warning buried in promotional text: remove the junk, keep the safety information",guardrail_pass,pass,Passed.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-13,"Messy listing with a safety warning buried in promotional text: remove the junk, keep the safety information",brand_preserved,pass,"""PawJoy"" kept."
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-R01,"Competitor brand that is a common word ('Spark'), plus 'ideal' and 'resale': none should be flagged","finding_not_flagged(rule_ids=[""AMZ-RESTRICT-06""], text=""spark"")",fail,"Wrongly flagged: [AMZ-RESTRICT-06] ""spark"""
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-R01,"Competitor brand that is a common word ('Spark'), plus 'ideal' and 'resale': none should be flagged","finding_not_flagged(rule_ids=[""AMZ-RESTRICT-01"",""AMZ-TITLE-04""], text=""ideal"")",pass,Not flagged.
+"v2 · 9/24/2026, 3:26:04 PM",v2,HARD-R01,"Competitor brand that is a common word ('Spark'), plus 'ideal' and 'resale': none should be flagged","finding_not_flagged(rule_ids=[""AMZ-RESTRICT-01"",""AMZ-TITLE-04""], text=""resale"")",pass,Not flagged.

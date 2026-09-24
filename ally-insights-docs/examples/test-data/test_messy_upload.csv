@@ -1,0 +1,6 @@
+SKU_ID, Brand ,Title,Category,Competitor_Group,Is_Client,bullet_1,bullet_2,bullet_3,description,image_urls,notes
+T-001,PawJoy,PawJoy Rubber Chew Toy for Dogs,Pet Supplies,Dog Chew Toys,yes,DURABLE RUBBER: Built for everyday chewing,,,"Rubber chew toy for medium dogs.",https://example.com/a.jpg|https://example.com/b.jpg,extra column
+T-002,Chewster,,Pet Supplies,Dog Chew Toys,no,SOFT GRIP: Easy to hold,,,"A chew toy.",,missing title
+T-001,PawJoy,Duplicate SKU Row,Pet Supplies,Dog Chew Toys,1,,,,,,duplicate id
+T-003,AquaPure,AquaPure Still Water 16.9 fl oz (Pack of 24),Beverages,Still Water,N,CLEAN TASTE: Filtered for a crisp finish,,,"Filtered still water in recyclable bottles.",https://example.com/c.jpg,single-SKU group
+T-004,BarkBox Buddy,BEST DOG TOY EVER!!! Buy Now,Pet Supplies,,no,FREE SHIPPING on all orders,,,"We guarantee your dog will love it. Visit www.example.com",,no group -> falls back to category
