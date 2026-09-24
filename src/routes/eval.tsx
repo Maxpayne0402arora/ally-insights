@@ -41,7 +41,7 @@ function buildTasks(run: EvalRun): Task[] {
   const aiRows = run.mode === "scenarios" ? run.set.rows.filter((r) => r.scenario) : run.mode === "firstN" ? clients.slice(0, run.firstN ?? 10) : clients;
   const tasks: Task[] = aiRows.map((row) => ({ key: row.sku.sku_id, row }));
   if (run.consistency) {
-    seededShuffle(clients, run.sampleSeed).slice(0, 5).forEach((row) => {
+    seededShuffle(clients, run.sampleSeed).slice(0, 3).forEach((row) => {
       for (let i = 1; i <= 3; i++) tasks.push({ key: `${row.sku.sku_id}#c${i}`, row, repeatOf: row.sku.sku_id });
     });
   }
@@ -263,7 +263,7 @@ function EvalPage() {
           )}
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={consistencyOn} onChange={(e) => setConsistencyOn(e.target.checked)} />
-            Consistency check: run 5 random client SKUs 3 times each
+            Consistency check: run 3 random AI rows 3 times each
           </label>
         </div>
         <div className="flex flex-wrap items-center gap-2">

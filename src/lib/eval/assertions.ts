@@ -1,5 +1,5 @@
 import { auditSku, maskPlaceholders } from "@/lib/rules";
-import { joined, type AiResult, type Edit } from "@/lib/top3";
+import { asList, joined, type AiResult, type Edit } from "@/lib/top3";
 import type { Sku } from "@/types/sku";
 import { isRuleAssertion, type Assertion, type AssertionResult, type EvalField, type EvalRow, type SkuRecord } from "./types";
 
@@ -27,11 +27,11 @@ export function evalRuleAssertion(a: Assertion, sku: Sku, allSkus: Sku[]): Asser
   const findings = auditSku(sku, allSkus);
   const label = assertionLabel(a);
   if (a.type !== "finding_flagged" && a.type !== "finding_not_flagged") throw new Error("not a rule assertion");
-  const matches = findings.filter((f) => f.rule_id === a.rule_id && (!a.text || lc(f.evidence).includes(lc(a.text))));
+  const matches = findings.filter((f) => (!a.rule_id || f.rule_id === a.rule_id) && (!a.text || lc(f.evidence).includes(lc(a.text))));
   if (a.type === "finding_flagged") {
     return matches.length
       ? { label, type: a.type, kind: "rules", pass: true, reason: `Flagged: "${matches[0]!.evidence}"` }
-      : { label, type: a.type, kind: "rules", pass: false, reason: `No ${a.rule_id} finding${a.text ? ` with evidence containing "${a.text}"` : ""}.` };
+      : { label, type: a.type, kind: "rules", pass: false, reason: `No ${a.rule_id || "matching"} finding${a.text ? ` with evidence containing "${a.text}"` : ""}.` };
   }
   return matches.length
     ? { label, type: a.type, kind: "rules", pass: false, reason: `Wrongly flagged: "${matches[0]!.evidence}"` }
@@ -60,6 +60,14 @@ export function evalAiAssertion(a: Assertion, rec: SkuRecord, sku: Sku): Asserti
     case "min_edits":
       return ok(r.top_edits.length >= a.value, `${r.top_edits.length} edit(s); min ${a.value}.`);
     case "max_length": {
+      if (a.field === "bullets") {
+        // Each bullet is checked individually.
+        for (const e of editsFor(r, "bullets")) {
+          const over = asList(e.proposed_full).find((b) => b.length > a.value);
+          if (over != null) return ok(false, `A bullet is ${over.length} characters (max ${a.value}): "${over.slice(0, 60)}…"`);
+        }
+        return ok(true, `Every bullet within ${a.value} characters.`);
+      }
       const over = editsFor(r, a.field).find((e) => proposed(e).length > a.value);
       return over ? ok(false, `${over.field} is ${proposed(over).length} characters (max ${a.value}).`) : ok(true, `Within ${a.value} characters.`);
     }
