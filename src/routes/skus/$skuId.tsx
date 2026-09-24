@@ -241,6 +241,14 @@ function ReportPage() {
       })),
     },
     {
+      label: "Bullet clarity",
+      tip: BULLET_CLARITY_TIP,
+      cells: metrics.map((m) => ({
+        value: `${m.clear}/${m.bullets || 0} clear`,
+        tone: m.bullets === 0 ? "neutral" : m.clear === best.clear ? "good" : m.clear >= best.clear - 1 ? "warn" : "bad",
+      })),
+    },
+    {
       label: "Description length (chars)",
       cells: metrics.map((m) => ({
         value: `${m.descLen}`,
