@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GuidelinesRouteImport } from './routes/guidelines'
 import { Route as SkusIndexRouteImport } from './routes/skus/index'
+import { Route as SkusSkuIdRouteImport } from './routes/skus/$skuId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,34 +29,43 @@ const SkusIndexRoute = SkusIndexRouteImport.update({
   path: '/skus/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SkusSkuIdRoute = SkusSkuIdRouteImport.update({
+  id: '/skus/$skuId',
+  path: '/skus/$skuId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/guidelines': typeof GuidelinesRoute
+  '/skus/$skuId': typeof SkusSkuIdRoute
   '/skus/': typeof SkusIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/guidelines': typeof GuidelinesRoute
+  '/skus/$skuId': typeof SkusSkuIdRoute
   '/skus': typeof SkusIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/guidelines': typeof GuidelinesRoute
+  '/skus/$skuId': typeof SkusSkuIdRoute
   '/skus/': typeof SkusIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/guidelines' | '/skus/'
+  fullPaths: '/' | '/guidelines' | '/skus/$skuId' | '/skus/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/guidelines' | '/skus'
-  id: '__root__' | '/' | '/guidelines' | '/skus/'
+  to: '/' | '/guidelines' | '/skus/$skuId' | '/skus'
+  id: '__root__' | '/' | '/guidelines' | '/skus/$skuId' | '/skus/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GuidelinesRoute: typeof GuidelinesRoute
+  SkusSkuIdRoute: typeof SkusSkuIdRoute
   SkusIndexRoute: typeof SkusIndexRoute
 }
 
@@ -82,12 +92,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SkusIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/skus/$skuId': {
+      id: '/skus/$skuId'
+      path: '/skus/$skuId'
+      fullPath: '/skus/$skuId'
+      preLoaderRoute: typeof SkusSkuIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GuidelinesRoute: GuidelinesRoute,
+  SkusSkuIdRoute: SkusSkuIdRoute,
   SkusIndexRoute: SkusIndexRoute,
 }
 export const routeTree = rootRouteImport

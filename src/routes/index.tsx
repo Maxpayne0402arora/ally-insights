@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -92,6 +92,18 @@ function LoadDataPage() {
   const [pending, setPending] = useState<ParseResult | null>(null);
   const [pendingName, setPendingName] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
+  const [notice, setNotice] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("ally.notice")) {
+        setNotice(true);
+        sessionStorage.removeItem("ally.notice");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   async function handleFile(file: File) {
     setFileError(null);
@@ -144,6 +156,12 @@ function LoadDataPage() {
   return (
     <div>
       <StepIndicator current={1} />
+
+      {notice && (
+        <div className="mb-6 rounded-lg border border-warning/30 bg-warning-soft px-4 py-3 text-sm text-warning">
+          Load product data to get started.
+        </div>
+      )}
 
       {hasData && (
         <div className="mb-8 flex flex-col gap-4 rounded-xl border border-primary/30 bg-primary/5 p-5 sm:flex-row sm:items-center sm:justify-between">

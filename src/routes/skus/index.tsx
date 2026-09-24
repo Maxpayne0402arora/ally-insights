@@ -34,7 +34,12 @@ function SelectSkuPage() {
 
   useEffect(() => {
     if (hydrated && !hasData) {
-      navigate({ to: "/", search: { notice: "no-data" } as never });
+      try {
+        sessionStorage.setItem("ally.notice", "1");
+      } catch {
+        /* ignore */
+      }
+      navigate({ to: "/" });
     }
   }, [hydrated, hasData, navigate]);
 
