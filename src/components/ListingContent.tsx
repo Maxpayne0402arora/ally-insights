@@ -99,7 +99,7 @@ function evidenceFinding(text: string, evidence?: string): Finding[] {
     : [];
 }
 
-export function ListingContent({ sku, allSkus, showHeading = true, evidence }: { sku: Sku; allSkus: Sku[]; showHeading?: boolean; evidence?: string }) {
+export function ListingContent({ sku, allSkus, showHeading = true, evidence }: { sku: Sku; allSkus: Sku[]; showHeading?: boolean; evidence?: string | undefined }) {
   const findings = useMemo(() => auditSku(sku, allSkus), [sku, allSkus]);
   const fieldText = (field: string) =>
     field === "title" ? sku.title : field === "description" ? sku.description : (sku.bullets[Number(field.split("_")[1]) - 1] ?? "");

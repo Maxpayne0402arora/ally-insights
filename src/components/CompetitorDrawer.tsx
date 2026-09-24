@@ -5,7 +5,7 @@ import { ListingContent } from "@/components/ListingContent";
 import { RoleBadge, ScoreBadge } from "@/components/ScoreBadge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
-export function CompetitorDrawer({ sku, allSkus, onClose, evidence }: { sku: Sku | null; allSkus: Sku[]; onClose: () => void; evidence?: string }) {
+export function CompetitorDrawer({ sku, allSkus, onClose, evidence }: { sku: Sku | null; allSkus: Sku[]; onClose: () => void; evidence?: string | undefined }) {
   const findings = sku ? auditSku(sku, allSkus) : [];
   useEffect(() => {
     if (!sku || !evidence) return;
