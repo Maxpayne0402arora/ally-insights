@@ -14,6 +14,7 @@ import { Route as GuidelinesRouteImport } from './routes/guidelines'
 import { Route as ApiGenerateEditsRouteImport } from './routes/api/generate-edits'
 import { Route as SkusIndexRouteImport } from './routes/skus/index'
 import { Route as SkusSkuIdRouteImport } from './routes/skus/$skuId'
+import { Route as SkusSkuIdSummaryRouteImport } from './routes/skus/$skuId_.summary'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,6 +41,11 @@ const SkusSkuIdRoute = SkusSkuIdRouteImport.update({
   path: '/skus/$skuId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SkusSkuIdSummaryRoute = SkusSkuIdSummaryRouteImport.update({
+  id: '/skus/$skuId_/summary',
+  path: '/skus/$skuId/summary',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/api/generate-edits': typeof ApiGenerateEditsRoute
   '/skus/$skuId': typeof SkusSkuIdRoute
   '/skus/': typeof SkusIndexRoute
+  '/skus/$skuId/summary': typeof SkusSkuIdSummaryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/api/generate-edits': typeof ApiGenerateEditsRoute
   '/skus/$skuId': typeof SkusSkuIdRoute
   '/skus': typeof SkusIndexRoute
+  '/skus/$skuId/summary': typeof SkusSkuIdSummaryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,25 @@ export interface FileRoutesById {
   '/api/generate-edits': typeof ApiGenerateEditsRoute
   '/skus/$skuId': typeof SkusSkuIdRoute
   '/skus/': typeof SkusIndexRoute
+  '/skus/$skuId_/summary': typeof SkusSkuIdSummaryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/guidelines' | '/api/generate-edits' | '/skus/$skuId' | '/skus/'
+    | '/'
+    | '/guidelines'
+    | '/api/generate-edits'
+    | '/skus/$skuId'
+    | '/skus/'
+    | '/skus/$skuId/summary'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/guidelines' | '/api/generate-edits' | '/skus/$skuId' | '/skus'
+  to:
+    | '/'
+    | '/guidelines'
+    | '/api/generate-edits'
+    | '/skus/$skuId'
+    | '/skus'
+    | '/skus/$skuId/summary'
   id:
     | '__root__'
     | '/'
@@ -76,6 +96,7 @@ export interface FileRouteTypes {
     | '/api/generate-edits'
     | '/skus/$skuId'
     | '/skus/'
+    | '/skus/$skuId_/summary'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -84,6 +105,7 @@ export interface RootRouteChildren {
   ApiGenerateEditsRoute: typeof ApiGenerateEditsRoute
   SkusSkuIdRoute: typeof SkusSkuIdRoute
   SkusIndexRoute: typeof SkusIndexRoute
+  SkusSkuIdSummaryRoute: typeof SkusSkuIdSummaryRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -123,6 +145,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SkusSkuIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/skus/$skuId_/summary': {
+      id: '/skus/$skuId_/summary'
+      path: '/skus/$skuId/summary'
+      fullPath: '/skus/$skuId/summary'
+      preLoaderRoute: typeof SkusSkuIdSummaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -132,6 +161,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerateEditsRoute: ApiGenerateEditsRoute,
   SkusSkuIdRoute: SkusSkuIdRoute,
   SkusIndexRoute: SkusIndexRoute,
+  SkusSkuIdSummaryRoute: SkusSkuIdSummaryRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

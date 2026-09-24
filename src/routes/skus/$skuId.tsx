@@ -31,8 +31,10 @@ type Search = { tab?: Tab | undefined; fix?: number | undefined };
 
 export const Route = createFileRoute("/skus/$skuId")({
   validateSearch: (s: Record<string, unknown>): Search => {
-    const tab = s.tab === "findings" || s.tab === "comparison" ? s.tab : undefined;
-    const raw = typeof s.fix === "number" ? s.fix : typeof s.fix === "string" && /^\d+$/.test(s.fix) ? Number(s.fix) : undefined;
+    const t = s["tab"];
+    const f = s["fix"];
+    const tab = t === "findings" || t === "comparison" ? t : undefined;
+    const raw = typeof f === "number" ? f : typeof f === "string" && /^\d+$/.test(f) ? Number(f) : undefined;
     return { ...(tab ? { tab } : {}), ...(tab === "findings" && raw ? { fix: raw } : {}) };
   },
   head: () => ({
