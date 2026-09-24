@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Info, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { RecommendedEdits, findingStatuses } from "@/components/RecommendedEdits";
+import { useGeneration } from "@/context/GenerationContext";
 import { StepIndicator } from "@/components/StepIndicator";
 import { RoleBadge, ScoreBadge } from "@/components/ScoreBadge";
 import { Button } from "@/components/ui/button";
@@ -54,10 +56,12 @@ const avg = (ns: number[]) =>
 
 function ReportPage() {
   const { skuId } = Route.useParams();
-  const { skus, hasData, hydrated } = useSkuData();
+  const { skus, hasData, hydrated, isDismissed, dismissFinding, restoreFinding } = useSkuData();
+  const { cacheKeyFor, results } = useGeneration();
   const navigate = useNavigate();
   const { openRule } = useRuleDrawer();
-  const [peekSku, setPeekSku] = useState<Sku | null>(null);
+  const [peek, setPeek] = useState<{ sku: Sku; evidence?: string } | null>(null);
+  const setPeekSku = (s: Sku | null) => setPeek(s ? { sku: s } : null);
 
   useEffect(() => {
     if (hydrated && !hasData) {
@@ -115,6 +119,7 @@ function ReportPage() {
   }
 
   const score = complianceScore(findings);
+  const statuses = findingStatuses(results[cacheKeyFor(sku.sku_id)]);
   const currentGroup = skus.filter((item) => item.competitor_group === sku.competitor_group);
   const currentIndex = currentGroup.findIndex((item) => item.sku_id === sku.sku_id);
   const previous = currentIndex > 0 ? currentGroup[currentIndex - 1] : undefined;
@@ -376,7 +381,7 @@ function ReportPage() {
                 </h3>
                 <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
                   {list.map((f) => (
-                    <li key={f.id} className="flex items-start gap-3 px-4 py-3">
+                    <li key={f.id} className={cn("flex flex-wrap items-start gap-3 px-4 py-3 sm:flex-nowrap", isDismissed(sku.sku_id, f.id) && "opacity-60")}>
                       <button
                         type="button"
                         onClick={() => {
@@ -399,6 +404,14 @@ function ReportPage() {
                       </span>
                       <div className="min-w-0">
                         <p className="text-sm text-foreground">{f.message}</p>
+                        {(isDismissed(sku.sku_id, f.id) || statuses.get(f.id)) && (
+                          <span className={cn("mt-1 inline-block rounded px-1.5 py-0.5 text-xs font-medium",
+                            isDismissed(sku.sku_id, f.id) ? "bg-secondary text-muted-foreground"
+                              : statuses.get(f.id)?.startsWith("Fixed") ? "bg-success-soft text-success"
+                              : statuses.get(f.id)?.startsWith("AI") ? "bg-primary/10 text-primary" : "bg-warning-soft text-warning")}>
+                            {isDismissed(sku.sku_id, f.id) ? "Dismissed as not an issue" : statuses.get(f.id)}
+                          </span>
+                        )}
                         {f.evidence && (
                           <p className="mt-1 break-words rounded bg-secondary px-2 py-1 font-mono text-xs text-muted-foreground">
                             {f.evidence}
@@ -415,6 +428,9 @@ function ReportPage() {
                       >
                         {f.rule_id}
                       </Button>
+                      {isDismissed(sku.sku_id, f.id) && (
+                        <Button type="button" variant="ghost" size="sm" className="h-auto shrink-0 px-2 py-1 text-xs" onClick={() => restoreFinding(sku.sku_id, f.id)}>Undo</Button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -424,22 +440,16 @@ function ReportPage() {
         )}
       </section>
 
-      <section className="mt-12 rounded-xl border border-dashed border-border bg-card p-6">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" />
-          <h2 className="font-semibold text-foreground">
-            Top 3 recommended edits — AI step coming next
-          </h2>
-        </div>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Ally will draft compliant title, bullet and description rewrites here,
-          validated against the same rules before you approve them.
-        </p>
-        <Button className="mt-4" disabled>
-          Generate recommendations
-        </Button>
-      </section>
-      <CompetitorDrawer sku={peekSku} allSkus={skus} onClose={() => setPeekSku(null)} />
+      <RecommendedEdits
+        sku={sku}
+        allSkus={skus}
+        findings={findings}
+        isDismissed={(id) => isDismissed(sku.sku_id, id)}
+        onDismiss={(id) => dismissFinding(sku.sku_id, id)}
+        onOpenRule={openRule}
+        onPeek={(s, evidence) => setPeek({ sku: s, evidence })}
+      />
+      <CompetitorDrawer sku={peek?.sku ?? null} evidence={peek?.evidence} allSkus={skus} onClose={() => setPeek(null)} />
     </div>
   );
 }
